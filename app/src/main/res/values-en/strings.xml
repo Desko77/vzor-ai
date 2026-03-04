@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vzor AI</string>
+
+    <!-- Chat -->
+    <string name="empty_chat_title">Hello!</string>
+    <string name="empty_chat_subtitle">I\'m your AI assistant. Type or say something.</string>
+    <string name="input_hint">Type a message…</string>
+    <string name="send">Send</string>
+    <string name="new_chat">New chat</string>
+    <string name="voice_input">Voice input</string>
+    <string name="stop_recording">Stop recording</string>
+    <string name="take_photo">Take photo</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="ai_provider">AI Provider</string>
+    <string name="api_keys">API Keys</string>
+    <string name="stt_provider">Speech Recognition (STT)</string>
+    <string name="tts_provider">Text to Speech (TTS)</string>
+    <string name="system_prompt">System Prompt</string>
+    <string name="system_prompt_hint">Instructions for AI assistant</string>
+
+    <!-- Glasses -->
+    <string name="glasses_disconnected">Glasses disconnected</string>
+    <string name="glasses_connecting">Connecting to glasses…</string>
+    <string name="glasses_connected">Glasses connected</string>
+    <string name="connect_glasses">Connect glasses</string>
+    <string name="disconnect_glasses">Disconnect glasses</string>
+
+    <!-- Errors -->
+    <string name="error_no_api_key">API key not set. Go to Settings.</string>
+    <string name="error_network">Network error. Check your internet connection.</string>
+    <string name="error_unknown">An unknown error occurred.</string>
+</resources>

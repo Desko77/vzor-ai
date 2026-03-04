@@ -1,0 +1,136 @@
+package com.vzor.ai.data.repository
+
+import android.util.Base64
+import com.vzor.ai.data.local.PreferencesManager
+import com.vzor.ai.data.remote.*
+import com.vzor.ai.domain.model.AiProvider
+import com.vzor.ai.domain.model.Message
+import com.vzor.ai.domain.model.MessageRole
+import com.vzor.ai.domain.repository.AiRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class AiRepositoryImpl @Inject constructor(
+    private val claudeApi: ClaudeApiService,
+    private val openAiApi: OpenAiApiService,
+    private val prefs: PreferencesManager
+) : AiRepository {
+
+    private var geminiService: GeminiService? = null
+
+    private suspend fun getGeminiService(): GeminiService {
+        val key = prefs.geminiApiKey.first()
+        if (geminiService == null || key.isNotEmpty()) {
+            geminiService = GeminiService(key)
+        }
+        return geminiService!!
+    }
+
+    override suspend fun sendMessage(messages: List<Message>): Result<String> {
+        return when (prefs.aiProvider.first()) {
+            AiProvider.GEMINI -> getGeminiService().sendMessage(messages)
+            AiProvider.CLAUDE -> sendClaude(messages)
+            AiProvider.OPENAI -> sendOpenAi(messages)
+        }
+    }
+
+    override fun streamMessage(messages: List<Message>): Flow<String> = flow {
+        when (prefs.aiProvider.first()) {
+            AiProvider.GEMINI -> {
+                getGeminiService().streamMessage(messages).collect { emit(it) }
+            }
+            AiProvider.CLAUDE -> {
+                val result = sendClaude(messages)
+                result.onSuccess { emit(it) }
+                result.onFailure { throw it }
+            }
+            AiProvider.OPENAI -> {
+                val result = sendOpenAi(messages)
+                result.onSuccess { emit(it) }
+                result.onFailure { throw it }
+            }
+        }
+    }
+
+    private suspend fun sendClaude(messages: List<Message>): Result<String> = runCatching {
+        val apiKey = prefs.claudeApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
+
+        val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
+        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
+
+        val claudeMessages = chatMessages.map { msg ->
+            if (msg.imageData != null) {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = listOf(
+                        ClaudeContentBlock(
+                            type = "image",
+                            source = ClaudeImageSource(
+                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                            )
+                        ),
+                        ClaudeContentBlock(type = "text", text = msg.content)
+                    )
+                )
+            } else {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = msg.content
+                )
+            }
+        }
+
+        val response = claudeApi.sendMessage(
+            apiKey = apiKey,
+            request = ClaudeRequest(
+                system = systemPrompt,
+                messages = claudeMessages
+            )
+        )
+
+        response.content.firstOrNull { it.type == "text" }?.text
+            ?: throw Exception("Пустой ответ от Claude")
+    }
+
+    private suspend fun sendOpenAi(messages: List<Message>): Result<String> = runCatching {
+        val apiKey = prefs.openAiApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ OpenAI не указан" }
+
+        val openAiMessages = messages.map { msg ->
+            val role = when (msg.role) {
+                MessageRole.USER -> "user"
+                MessageRole.ASSISTANT -> "assistant"
+                MessageRole.SYSTEM -> "system"
+            }
+
+            if (msg.imageData != null && msg.role == MessageRole.USER) {
+                val base64 = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                OpenAiMessage(
+                    role = role,
+                    content = listOf(
+                        OpenAiContentPart(type = "text", text = msg.content),
+                        OpenAiContentPart(
+                            type = "image_url",
+                            imageUrl = OpenAiImageUrl("data:image/jpeg;base64,$base64")
+                        )
+                    )
+                )
+            } else {
+                OpenAiMessage(role = role, content = msg.content)
+            }
+        }
+
+        val response = openAiApi.chatCompletion(
+            auth = "Bearer $apiKey",
+            request = OpenAiChatRequest(messages = openAiMessages)
+        )
+
+        response.choices.firstOrNull()?.message?.content
+            ?: throw Exception("Пустой ответ от OpenAI")
+    }
+}
