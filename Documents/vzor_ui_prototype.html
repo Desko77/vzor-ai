@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Взор — UI Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #006A6A;
+    --md-on-primary: #FFFFFF;
+    --md-primary-container: #9CF1F0;
+    --md-on-primary-container: #002020;
+    --md-secondary: #4A6363;
+    --md-secondary-container: #CCE8E7;
+    --md-tertiary: #4B607C;
+    --md-tertiary-container: #D3E4FF;
+    --md-surface: #F4FBFA;
+    --md-surface-variant: #DAE5E4;
+    --md-on-surface: #161D1D;
+    --md-on-surface-variant: #3F4948;
+    --md-outline: #6F7979;
+    --md-outline-variant: #BEC9C8;
+    --md-background: #F4FBFA;
+    --md-error: #BA1A1A;
+    --md-error-container: #FFDAD6;
+    --md-surface-container: #E8F2F1;
+    --md-surface-container-high: #E2ECEB;
+    --md-surface-container-highest: #DCE7E6;
+    --md-elevation-1: 0px 1px 2px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
+    --md-elevation-2: 0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
+    --md-elevation-3: 0px 4px 8px 3px rgba(0,0,0,0.15), 0px 1px 3px rgba(0,0,0,0.3);
+    --radius-xs: 4px;
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --radius-l: 16px;
+    --radius-xl: 28px;
+    --radius-full: 50px;
+  }
+
+  /* ── DARK THEME ── */
+  .dark-theme {
+    --md-primary: #80D5D4;
+    --md-on-primary: #003737;
+    --md-primary-container: #004F4F;
+    --md-on-primary-container: #9CF1F0;
+    --md-secondary: #B0CCCC;
+    --md-secondary-container: #324B4B;
+    --md-tertiary: #AAC7E8;
+    --md-tertiary-container: #334863;
+    --md-surface: #0E1515;
+    --md-surface-variant: #3F4948;
+    --md-on-surface: #DCE7E6;
+    --md-on-surface-variant: #BEC9C8;
+    --md-outline: #899392;
+    --md-outline-variant: #3F4948;
+    --md-background: #0E1515;
+    --md-error: #FFB4AB;
+    --md-error-container: #93000A;
+    --md-surface-container: #1B2323;
+    --md-surface-container-high: #252E2E;
+    --md-surface-container-highest: #303A3A;
+    --md-elevation-1: 0px 1px 2px rgba(0,0,0,0.6), 0px 1px 3px 1px rgba(0,0,0,0.4);
+    --md-elevation-2: 0px 1px 2px rgba(0,0,0,0.6), 0px 2px 6px 2px rgba(0,0,0,0.4);
+    --md-elevation-3: 0px 4px 8px 3px rgba(0,0,0,0.4), 0px 1px 3px rgba(0,0,0,0.6);
+  }
+
+  /* dark overrides for hardcoded colors */
+  .dark-theme .glasses-status-card {
+    background: linear-gradient(135deg, var(--md-primary-container), #005F5F);
+  }
+  .dark-theme .glasses-status-card::after { background: rgba(128,213,212,0.06); }
+  .dark-theme .glasses-label { color: var(--md-primary); }
+  .dark-theme .connected-badge { background: #004F4F; }
+  .dark-theme .log-body { background: #0A1212; }
+  .dark-theme .sidebar { background: var(--md-background); }
+  .dark-theme body { background: #0A0A14; }
+
+  .device-frame { transition: background 0.3s; }
+  .dark-theme .device-frame { background: var(--md-background); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: #1A1A2E;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Google Sans', 'Roboto', sans-serif;
+    padding: 24px 16px;
+  }
+
+  .device-frame {
+    width: 393px;
+    min-height: 852px;
+    background: var(--md-background);
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 0 0 2px #333, 0 0 0 6px #222, 0 32px 80px rgba(0,0,0,0.7);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* STATUS BAR */
+  .status-bar {
+    height: 44px;
+    background: var(--md-background);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    flex-shrink: 0;
+  }
+  .status-bar .time { font-size: 15px; font-weight: 600; color: var(--md-on-surface); }
+  .status-bar .icons { display: flex; gap: 6px; align-items: center; color: var(--md-on-surface); font-size: 12px; }
+
+  /* SCREENS */
+  .screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .screen.active { display: flex; }
+
+  /* TOP APP BAR */
+  .top-bar {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 0 4px 0 16px;
+    gap: 4px;
+    background: var(--md-background);
+    flex-shrink: 0;
+  }
+  .top-bar .bar-title {
+    font-family: 'Google Sans Display', sans-serif;
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--md-on-surface);
+    flex: 1;
+  }
+  .icon-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--md-on-surface-variant);
+    font-size: 22px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { background: rgba(0,0,0,0.08); }
+
+  /* SCROLL CONTENT */
+  .scroll-content { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+  .scroll-content::-webkit-scrollbar { display: none; }
+
+  /* CARDS */
+  .card {
+    background: var(--md-surface-container);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--md-on-surface-variant);
+    margin-bottom: 16px;
+  }
+
+  /* ─── SCREEN 1: HOME ─── */
+  .glasses-status-card {
+    background: linear-gradient(135deg, var(--md-primary-container), #B8F0EF);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .glasses-status-card::after {
+    content: '';
+    position: absolute;
+    right: -20px; top: -20px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: rgba(0,106,106,0.08);
+  }
+  .glasses-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; color: var(--md-primary); margin-bottom: 4px; }
+  .glasses-name { font-size: 22px; font-weight: 400; color: var(--md-on-primary-container); margin-bottom: 16px; }
+  .glasses-stats { display: flex; gap: 24px; }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-value { font-size: 20px; font-weight: 500; color: var(--md-on-primary-container); }
+  .stat-label { font-size: 12px; color: var(--md-primary); }
+  .connected-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #006A6A; color: #fff;
+    border-radius: var(--radius-full);
+    padding: 4px 12px;
+    font-size: 12px; font-weight: 500;
+    margin-top: 16px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #9CF1F0; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* FAB ACTIVATE */
+  .fab-section { padding: 8px 0 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .fab-large {
+    width: 80px; height: 80px;
+    border-radius: 28px;
+    background: var(--md-primary);
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--md-elevation-3);
+    transition: transform 0.15s, box-shadow 0.15s;
+    color: var(--md-on-primary);
+    font-size: 32px;
+  }
+  .fab-large:active { transform: scale(0.95); box-shadow: var(--md-elevation-1); }
+  .fab-label { font-size: 14px; color: var(--md-on-surface-variant); }
+
+  /* QUICK STATS ROW */
+  .quick-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .stat-card {
+    background: var(--md-surface-container);
+    border-radius: var(--radius-l);
+    padding: 16px;
+  }
+  .stat-card-value { font-size: 28px; font-weight: 400; color: var(--md-on-surface); }
+  .stat-card-label { font-size: 12px; color: var(--md-on-surface-variant); margin-top: 4px; }
+
+  /* RECENT SESSIONS */
+  .session-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--md-outline-variant);
+    cursor: pointer;
+  }
+  .session-item:last-child { border-bottom: none; }
+  .session-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-m);
+    background: var(--md-secondary-container);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .session-info { flex: 1; }
+  .session-title { font-size: 14px; font-weight: 500; color: var(--md-on-surface); }
+  .session-meta { font-size: 12px; color: var(--md-on-surface-variant); margin-top: 2px; }
+  .session-time { font-size: 12px; color: var(--md-on-surface-variant); }
+
+  /* ─── SCREEN 2: CONVERSATION ─── */
+  .conv-status-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px 16px;
+    flex-shrink: 0;
+  }
+  .mode-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: var(--radius-full);
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 500;
+  }
+  .mode-chip.local { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .mode-chip.cloud { background: var(--md-tertiary-container); color: #00315C; }
+  .latency-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-radius: var(--radius-full);
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 500;
+    background: var(--md-surface-container-highest);
+    color: var(--md-on-surface-variant);
+    margin-left: auto;
+  }
+
+  .messages-area { flex: 1; overflow-y: auto; padding: 0 16px; }
+  .messages-area::-webkit-scrollbar { display: none; }
+
+  .message { margin-bottom: 16px; }
+  .message.user { display: flex; justify-content: flex-end; }
+  .message.assistant { display: flex; justify-content: flex-start; }
+  .bubble {
+    max-width: 80%;
+    border-radius: var(--radius-xl);
+    padding: 12px 16px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .bubble.user {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    border-bottom-right-radius: var(--radius-xs);
+  }
+  .bubble.assistant {
+    background: var(--md-surface-container-highest);
+    color: var(--md-on-surface);
+    border-bottom-left-radius: var(--radius-xs);
+  }
+  .bubble-meta { font-size: 11px; color: var(--md-on-surface-variant); margin-top: 4px; padding: 0 4px; }
+  .message.user .bubble-meta { text-align: right; }
+
+  .vision-attachment {
+    background: var(--md-surface-container);
+    border-radius: var(--radius-l);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--md-on-surface-variant);
+    max-width: 80%;
+  }
+
+  .typing-indicator {
+    display: flex; align-items: center; gap: 4px;
+    padding: 14px 16px;
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-xl);
+    border-bottom-left-radius: var(--radius-xs);
+    width: fit-content;
+  }
+  .typing-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--md-on-surface-variant);
+    animation: typing 1.4s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+  /* VOICE INPUT BAR */
+  .voice-bar {
+    padding: 12px 16px 24px;
+    flex-shrink: 0;
+    background: var(--md-background);
+  }
+  .voice-input-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-full);
+    padding: 6px 6px 6px 16px;
+    box-shadow: var(--md-elevation-1);
+  }
+  .voice-transcript {
+    flex: 1;
+    font-size: 15px;
+    color: var(--md-on-surface-variant);
+    border: none; background: transparent; outline: none;
+    font-family: inherit;
+  }
+  .mic-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 20px;
+    transition: background 0.2s, transform 0.15s;
+    flex-shrink: 0;
+  }
+  .mic-btn.recording { background: var(--md-error); animation: mic-pulse 1s infinite; }
+  @keyframes mic-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+  .waveform {
+    flex: 1; display: flex; align-items: center; gap: 2px; height: 24px;
+  }
+  .wave-bar {
+    width: 3px; background: var(--md-primary); border-radius: 2px;
+    animation: wave 0.8s ease-in-out infinite alternate;
+  }
+  .wave-bar:nth-child(odd) { animation-duration: 0.6s; }
+  @keyframes wave { from{height:4px} to{height:20px} }
+
+  /* ─── SCREEN 3: HISTORY ─── */
+  .filter-chips { display: flex; gap: 8px; padding: 0 16px 16px; overflow-x: auto; flex-shrink: 0; }
+  .filter-chips::-webkit-scrollbar { display: none; }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px;
+    border-radius: var(--radius-full);
+    font-size: 14px; white-space: nowrap;
+    border: 1px solid var(--md-outline);
+    background: transparent; cursor: pointer;
+    color: var(--md-on-surface-variant);
+    transition: background 0.2s;
+  }
+  .filter-chip.active {
+    background: var(--md-secondary-container);
+    border-color: transparent;
+    color: var(--md-on-surface);
+    font-weight: 500;
+  }
+
+  .history-day-header {
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--md-on-surface-variant);
+    padding: 8px 0 8px;
+  }
+  .history-item {
+    display: flex; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--md-outline-variant);
+    cursor: pointer;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .hist-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--radius-l);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .hist-icon.voice { background: var(--md-primary-container); }
+  .hist-icon.photo { background: #FFE0CC; }
+  .hist-icon.video { background: var(--md-tertiary-container); }
+  .hist-info { flex: 1; }
+  .hist-title { font-size: 15px; font-weight: 500; color: var(--md-on-surface); margin-bottom: 2px; }
+  .hist-preview { font-size: 13px; color: var(--md-on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .hist-chips { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .mini-chip {
+    font-size: 11px; padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--md-surface-container-highest);
+    color: var(--md-on-surface-variant);
+  }
+  .hist-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .hist-time { font-size: 12px; color: var(--md-on-surface-variant); }
+  .hist-duration {
+    font-size: 11px; padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--md-surface-container);
+    color: var(--md-on-surface-variant);
+  }
+
+  /* ─── SCREEN 4: SETTINGS ─── */
+  .settings-section { margin-bottom: 8px; }
+  .settings-section-title {
+    font-size: 13px; font-weight: 500;
+    color: var(--md-primary);
+    padding: 16px 0 8px;
+    letter-spacing: 0.3px;
+  }
+  .settings-item {
+    display: flex; align-items: center;
+    padding: 14px 16px;
+    background: var(--md-surface-container);
+    cursor: pointer;
+    gap: 16px;
+    transition: background 0.15s;
+  }
+  .settings-item:first-of-type { border-radius: var(--radius-l) var(--radius-l) 0 0; }
+  .settings-item:last-of-type { border-radius: 0 0 var(--radius-l) var(--radius-l); }
+  .settings-item:only-child { border-radius: var(--radius-l); }
+  .settings-item:not(:last-of-type) { border-bottom: 1px solid var(--md-outline-variant); }
+  .settings-item:hover { background: var(--md-surface-container-high); }
+  .settings-item-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-m);
+    background: var(--md-secondary-container);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+    color: var(--md-on-surface-variant);
+  }
+  .settings-item-content { flex: 1; }
+  .settings-item-title { font-size: 15px; color: var(--md-on-surface); font-weight: 500; }
+  .settings-item-subtitle { font-size: 13px; color: var(--md-on-surface-variant); margin-top: 2px; }
+  .settings-item-trailing { display: flex; align-items: center; gap: 8px; }
+  .settings-badge {
+    font-size: 12px; padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+  }
+  .badge-green { background: #C8F5D8; color: #00531B; }
+  .badge-blue { background: var(--md-tertiary-container); color: #00315C; }
+  .badge-orange { background: #FFECC8; color: #6B3A00; }
+  .chevron { color: var(--md-on-surface-variant); font-size: 18px; }
+
+  /* TOGGLE */
+  .toggle {
+    width: 52px; height: 32px; border-radius: 16px;
+    border: 2px solid var(--md-outline);
+    background: transparent;
+    position: relative; cursor: pointer;
+    transition: background 0.3s, border-color 0.3s;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--md-primary); border-color: var(--md-primary); }
+  .toggle-thumb {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--md-outline);
+    left: 4px;
+    transition: left 0.3s, width 0.3s, background 0.3s;
+  }
+  .toggle.on .toggle-thumb {
+    left: calc(100% - 20px);
+    width: 24px;
+    background: white;
+  }
+
+  /* ─── SCREEN 5: LOGS ─── */
+  .log-toolbar {
+    padding: 0 16px 12px;
+    display: flex; gap: 8px;
+    flex-shrink: 0;
+  }
+  .log-search {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-full);
+    padding: 8px 16px;
+    font-size: 14px; color: var(--md-on-surface-variant);
+  }
+  .log-area { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+  .log-area::-webkit-scrollbar { display: none; }
+  .log-entry {
+    margin-bottom: 6px;
+    border-radius: var(--radius-s);
+    overflow: hidden;
+  }
+  .log-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    background: var(--md-surface-container);
+    user-select: none;
+  }
+  .log-level {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 6px; border-radius: 3px;
+    font-family: 'Roboto Mono', monospace;
+    flex-shrink: 0;
+  }
+  .log-level.DEBUG { background: #E8F5E9; color: #1B5E20; }
+  .log-level.INFO { background: var(--md-primary-container); color: var(--md-primary); }
+  .log-level.WARN { background: #FFF8E1; color: #E65100; }
+  .log-level.ERROR { background: var(--md-error-container); color: var(--md-error); }
+  .log-time { font-size: 11px; color: var(--md-on-surface-variant); font-family: 'Roboto Mono', monospace; flex-shrink: 0; }
+  .log-tag { font-size: 12px; font-weight: 500; color: var(--md-tertiary); flex-shrink: 0; }
+  .log-msg { font-size: 13px; color: var(--md-on-surface); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-body {
+    background: #1E2A2A;
+    padding: 10px 12px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    color: #9CF1F0;
+    line-height: 1.6;
+    display: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .log-body.open { display: block; }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    height: 80px;
+    background: var(--md-surface-container);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 12px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--md-outline-variant);
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .nav-icon-wrap {
+    width: 64px; height: 32px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    transition: background 0.2s;
+  }
+  .nav-item.active .nav-icon-wrap { background: var(--md-secondary-container); }
+  .nav-label {
+    font-size: 12px; font-weight: 500;
+    color: var(--md-on-surface-variant);
+    transition: color 0.2s;
+  }
+  .nav-item.active .nav-label { color: var(--md-on-surface); font-weight: 600; }
+
+  /* DIALOG */
+  .dialog-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+    z-index: 100;
+  }
+  .dialog-overlay.open { display: flex; }
+  .dialog {
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    width: 100%;
+  }
+  .dialog-title { font-size: 20px; font-weight: 500; color: var(--md-on-surface); margin-bottom: 8px; }
+  .dialog-body { font-size: 14px; color: var(--md-on-surface-variant); margin-bottom: 24px; line-height: 1.6; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .btn-text {
+    padding: 10px 24px;
+    border-radius: var(--radius-full);
+    border: none; cursor: pointer;
+    font-size: 14px; font-weight: 500;
+    font-family: 'Google Sans', sans-serif;
+    transition: background 0.2s;
+  }
+  .btn-text.primary { background: var(--md-primary); color: white; }
+  .btn-text.secondary { background: transparent; color: var(--md-primary); }
+  .btn-text:hover { opacity: 0.9; }
+
+  /* SNACKBAR */
+  .snackbar {
+    position: absolute; bottom: 90px;
+    left: 16px; right: 16px;
+    background: #313033;
+    color: white;
+    border-radius: var(--radius-s);
+    padding: 14px 16px;
+    font-size: 14px;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    z-index: 50;
+  }
+  .snackbar.show { transform: translateY(0); opacity: 1; }
+
+  /* MEDIA GRID */
+  .media-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px 16px; flex-shrink: 0; }
+  .media-thumb {
+    aspect-ratio: 1;
+    border-radius: var(--radius-m);
+    background: var(--md-surface-container-highest);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; cursor: pointer;
+    position: relative; overflow: hidden;
+    font-size: 11px; color: var(--md-on-surface-variant);
+  }
+  .media-thumb .thumb-icon { font-size: 28px; }
+  .media-thumb .thumb-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.5));
+    padding: 16px 8px 8px;
+    color: white; font-size: 11px;
+  }
+  .media-label { padding: 0 16px 8px; font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; color: var(--md-on-surface-variant); }
+
+  /* RECORDING RING */
+  .recording-ring {
+    width: 88px; height: 88px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ring-svg {
+    position: absolute; inset: 0;
+    animation: rotate 3s linear infinite;
+  }
+  @keyframes rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  /* ─── CHAT SIDEBAR ─── */
+  .sidebar-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 200;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .sidebar-overlay.open { display: block; opacity: 1; }
+
+  .sidebar {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    width: 300px;
+    background: var(--md-background);
+    z-index: 201;
+    display: flex; flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: var(--md-elevation-3);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .sidebar-header {
+    padding: 52px 16px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-title {
+    font-family: 'Google Sans Display', sans-serif;
+    font-size: 22px; font-weight: 400;
+    color: var(--md-on-surface);
+  }
+  .sidebar-new-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: none; background: var(--md-primary);
+    color: white; font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--md-elevation-2);
+  }
+
+  .sidebar-search {
+    margin: 8px 16px 12px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-full);
+    padding: 8px 16px;
+    font-size: 14px; color: var(--md-on-surface-variant);
+    flex-shrink: 0;
+  }
+
+  .sidebar-chats { flex: 1; overflow-y: auto; padding: 0 8px 16px; }
+  .sidebar-chats::-webkit-scrollbar { display: none; }
+
+  .sidebar-day-label {
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 0.4px;
+    color: var(--md-on-surface-variant);
+    padding: 12px 8px 6px;
+  }
+
+  .chat-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 10px;
+    border-radius: var(--radius-l);
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .chat-row:hover, .chat-row.active { background: var(--md-surface-container); }
+  .chat-row.active { background: var(--md-secondary-container); }
+
+  .chat-row-icon {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-m);
+    background: var(--md-primary-container);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .chat-row-info { flex: 1; min-width: 0; }
+  .chat-row-title {
+    font-size: 14px; font-weight: 500;
+    color: var(--md-on-surface);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-row-preview {
+    font-size: 12px;
+    color: var(--md-on-surface-variant);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 1px;
+  }
+  .chat-row-time {
+    font-size: 11px;
+    color: var(--md-on-surface-variant);
+    flex-shrink: 0; align-self: flex-start; margin-top: 2px;
+  }
+  .chat-row-menu {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: none; background: transparent;
+    color: var(--md-on-surface-variant);
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .chat-row:hover .chat-row-menu { opacity: 1; }
+  .chat-row-menu:hover { background: var(--md-surface-container-highest); }
+
+  /* Context menu popup */
+  .ctx-menu {
+    position: absolute; right: 8px; top: 36px;
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-m);
+    box-shadow: var(--md-elevation-3);
+    z-index: 300; min-width: 160px;
+    overflow: hidden;
+    display: none;
+  }
+  .ctx-menu.open { display: block; }
+  .ctx-item {
+    padding: 12px 16px;
+    font-size: 14px; color: var(--md-on-surface);
+    cursor: pointer; display: flex; align-items: center; gap: 10px;
+    transition: background 0.15s;
+  }
+  .ctx-item:hover { background: var(--md-surface-container); }
+  .ctx-item.danger { color: var(--md-error); }
+
+  /* Segmented control */
+  .seg-control {
+    display: flex;
+    background: var(--md-surface-container-highest);
+    border-radius: var(--radius-m);
+    padding: 4px;
+    margin: 0 16px 12px;
+    flex-shrink: 0;
+  }
+  .seg-item {
+    flex: 1; text-align: center;
+    padding: 8px;
+    border-radius: var(--radius-s);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    color: var(--md-on-surface-variant);
+    transition: background 0.2s, color 0.2s;
+  }
+  .seg-item.active {
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    box-shadow: var(--md-elevation-1);
+  }
+</style>
+</head>
+<body>
+
+<div class="device-frame">
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <div class="icons">
+      <span>📶</span>
+      <span>📡</span>
+      <span>🔋</span>
+    </div>
+  </div>
+
+  <!-- ═══ SCREEN 1: HOME ═══ -->
+  <div class="screen active" id="screen-home">
+    <div class="top-bar">
+      <span class="bar-title">Взор</span>
+      <button class="icon-btn" onclick="showDialog()">🔔</button>
+      <button class="icon-btn" onclick="navigate('settings')">⚙️</button>
+    </div>
+
+    <div class="scroll-content">
+      <!-- Glasses Status -->
+      <div class="glasses-status-card">
+        <div class="glasses-label">Ray-Ban Meta Gen 2</div>
+        <div class="glasses-name">Мои очки</div>
+        <div class="glasses-stats">
+          <div class="stat">
+            <span class="stat-value">78%</span>
+            <span class="stat-label">Батарея</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">23°C</span>
+            <span class="stat-label">Темп.</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">BT 5.2</span>
+            <span class="stat-label">Связь</span>
+          </div>
+        </div>
+        <div class="connected-badge">
+          <span class="dot"></span>
+          Подключены
+        </div>
+      </div>
+
+      <!-- FAB Activate -->
+      <div class="fab-section">
+        <div class="recording-ring">
+          <svg class="ring-svg" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="44" cy="44" r="40" stroke="var(--md-primary-container)" stroke-width="2" stroke-dasharray="60 191"/>
+          </svg>
+          <button class="fab-large" onclick="navigate('conversation')">🎤</button>
+        </div>
+        <span class="fab-label">Нажмите или скажите «Взор»</span>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="quick-stats">
+        <div class="stat-card">
+          <div class="stat-card-value">47</div>
+          <div class="stat-card-label">Запросов сегодня</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value">2.3с</div>
+          <div class="stat-card-label">Средняя задержка</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value">Local</div>
+          <div class="stat-card-label">Режим AI (Wi-Fi)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value">12</div>
+          <div class="stat-card-label">Фото сегодня</div>
+        </div>
+      </div>
+
+      <!-- Recent Sessions -->
+      <div class="card">
+        <div class="card-title">Последние сессии</div>
+        <div class="session-item" onclick="navigate('history')">
+          <div class="session-icon">🗣️</div>
+          <div class="session-info">
+            <div class="session-title">«Что за здание передо мной?»</div>
+            <div class="session-meta">Yandex STT · AI Max · 3 сообщения</div>
+          </div>
+          <div class="session-time">14:32</div>
+        </div>
+        <div class="session-item" onclick="navigate('history')">
+          <div class="session-icon">📷</div>
+          <div class="session-info">
+            <div class="session-title">«Сфотографируй это меню»</div>
+            <div class="session-meta">Vision · Whisper · 1 фото</div>
+          </div>
+          <div class="session-time">12:15</div>
+        </div>
+        <div class="session-item" onclick="navigate('history')">
+          <div class="session-icon">📞</div>
+          <div class="session-info">
+            <div class="session-title">«Позвони маме»</div>
+            <div class="session-meta">Intent: CALL · WhatsApp</div>
+          </div>
+          <div class="session-time">10:08</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SCREEN 2: CHATS ═══ -->
+  <div class="screen" id="screen-conversation">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="openSidebar()">☰</button>
+      <span class="bar-title">«Что за здание?»</span>
+      <button class="icon-btn" onclick="showSnackbar('Сессия сохранена')">💾</button>
+      <button class="icon-btn" onclick="showCtxMenuTop()">⋮</button>
+    </div>
+
+    <div class="conv-status-bar">
+      <div class="mode-chip local">🏠 AI Max</div>
+      <div class="mode-chip cloud" style="display:none">☁️ Claude API</div>
+      <div class="latency-chip">⚡ 287ms</div>
+    </div>
+
+    <div class="messages-area" id="messages">
+      <!-- vision attachment -->
+      <div class="message assistant">
+        <div>
+          <div class="vision-attachment">
+            📸 <span>Кадр с очков прикреплён</span>
+          </div>
+          <div class="bubble assistant">
+            Вижу здание в стиле конструктивизма 1930-х годов. Судя по фасаду — это Дом культуры или административное здание советской эпохи. Характерные элементы: ленточное остекление, горизонтальные тяги, лаконичный декор.
+          </div>
+          <div class="bubble-meta">Взор · 14:32</div>
+        </div>
+      </div>
+
+      <div class="message user">
+        <div>
+          <div class="bubble user">А что сейчас находится внутри?</div>
+          <div class="bubble-meta">14:33</div>
+        </div>
+      </div>
+
+      <div class="message assistant">
+        <div>
+          <div class="bubble assistant">
+            Ищу информацию... Судя по вывескам, которые я вижу на фото, здесь расположен районный МФЦ. Хотите узнать часы работы?
+          </div>
+          <div class="bubble-meta">Взор · 14:33</div>
+        </div>
+      </div>
+
+      <div class="message user">
+        <div>
+          <div class="bubble user">Да</div>
+          <div class="bubble-meta">14:33</div>
+        </div>
+      </div>
+
+      <!-- typing -->
+      <div class="message assistant" id="typing-msg">
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voice-bar">
+      <div class="voice-input-row" id="voice-row">
+        <span class="voice-transcript" id="transcript-text">Говорите или печатайте...</span>
+        <button class="mic-btn" id="mic-btn" onclick="toggleRecording()">🎤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SCREEN 3: HISTORY ═══ -->
+  <div class="screen" id="screen-history">
+    <div class="top-bar">
+      <span class="bar-title">История</span>
+      <button class="icon-btn">🔍</button>
+      <button class="icon-btn">⋮</button>
+    </div>
+
+    <div class="filter-chips">
+      <button class="filter-chip active" onclick="setFilter(this)">✅ Все</button>
+      <button class="filter-chip" onclick="setFilter(this)">🗣️ Голос</button>
+      <button class="filter-chip" onclick="setFilter(this)">📷 Фото</button>
+      <button class="filter-chip" onclick="setFilter(this)">🎬 Видео</button>
+      <button class="filter-chip" onclick="setFilter(this)">📞 Звонки</button>
+    </div>
+
+    <!-- Media section -->
+    <div class="media-label">Медиафайлы</div>
+    <div class="media-grid">
+      <div class="media-thumb">
+        <span class="thumb-icon">🏛️</span>
+        <div class="thumb-overlay">14:32 · Vision</div>
+      </div>
+      <div class="media-thumb">
+        <span class="thumb-icon">🍽️</span>
+        <div class="thumb-overlay">12:15 · Меню</div>
+      </div>
+      <div class="media-thumb">
+        <span class="thumb-icon">🎬</span>
+        <div class="thumb-overlay">09:45 · 0:23</div>
+      </div>
+      <div class="media-thumb" style="border: 2px dashed var(--md-outline); background: transparent;">
+        <span class="thumb-icon" style="font-size:20px; color: var(--md-on-surface-variant)">+</span>
+        <span style="font-size:11px; color: var(--md-on-surface-variant)">Все медиа</span>
+      </div>
+    </div>
+
+    <div class="scroll-content" style="padding-top:0">
+      <div class="history-day-header">Сегодня</div>
+
+      <div class="history-item">
+        <div class="hist-icon voice">🗣️</div>
+        <div class="hist-info">
+          <div class="hist-title">«Что за здание?»</div>
+          <div class="hist-preview">Вижу здание в стиле конструктивизма...</div>
+          <div class="hist-chips">
+            <span class="mini-chip">AI Max</span>
+            <span class="mini-chip">Whisper</span>
+            <span class="mini-chip">Vision</span>
+          </div>
+        </div>
+        <div class="hist-right">
+          <span class="hist-time">14:32</span>
+          <span class="hist-duration">0:47</span>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="hist-icon photo">📷</div>
+        <div class="hist-info">
+          <div class="hist-title">«Сфотографируй меню»</div>
+          <div class="hist-preview">1 фото · Ресторан Пушкин</div>
+          <div class="hist-chips">
+            <span class="mini-chip">Claude API</span>
+            <span class="mini-chip">Yandex STT</span>
+          </div>
+        </div>
+        <div class="hist-right">
+          <span class="hist-time">12:15</span>
+          <span class="hist-duration">0:12</span>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="hist-icon voice">📞</div>
+        <div class="hist-info">
+          <div class="hist-title">«Позвони маме»</div>
+          <div class="hist-preview">Исходящий · WhatsApp</div>
+          <div class="hist-chips">
+            <span class="mini-chip">Intent: CALL</span>
+          </div>
+        </div>
+        <div class="hist-right">
+          <span class="hist-time">10:08</span>
+          <span class="hist-duration">0:03</span>
+        </div>
+      </div>
+
+      <div class="history-day-header">Вчера</div>
+
+      <div class="history-item">
+        <div class="hist-icon video">🎬</div>
+        <div class="hist-info">
+          <div class="hist-title">«Запиши это»</div>
+          <div class="hist-preview">Видеозапись · 0:23 · 12 МБ</div>
+          <div class="hist-chips">
+            <span class="mini-chip">Video</span>
+          </div>
+        </div>
+        <div class="hist-right">
+          <span class="hist-time">Вчера</span>
+          <span class="hist-duration">0:23</span>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="hist-icon voice">🗣️</div>
+        <div class="hist-info">
+          <div class="hist-title">«Переведи вывеску»</div>
+          <div class="hist-preview">"Open for business" — Открыто для...</div>
+          <div class="hist-chips">
+            <span class="mini-chip">AI Max</span>
+            <span class="mini-chip">Vision</span>
+          </div>
+        </div>
+        <div class="hist-right">
+          <span class="hist-time">Вчера</span>
+          <span class="hist-duration">0:28</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SCREEN 4: SETTINGS ═══ -->
+  <div class="screen" id="screen-settings">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="navigate('home')">←</button>
+      <span class="bar-title">Настройки</span>
+    </div>
+
+    <div class="scroll-content">
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_stt">STT — Распознавание речи</div>
+        <div class="settings-item">
+          <div class="settings-item-icon">🏠</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="stt_home">Дома (Wi-Fi)</div>
+            <div class="settings-item-subtitle" data-i18n="stt_home_sub">Whisper V3 Turbo · AI Max</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="settings-badge badge-green">~300ms</span>
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">📡</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="stt_lte">На улице (LTE)</div>
+            <div class="settings-item-subtitle" data-i18n="stt_lte_sub">Yandex SpeechKit</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="settings-badge badge-blue">~150ms</span>
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">✈️</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="stt_offline">Оффлайн</div>
+            <div class="settings-item-subtitle" data-i18n="stt_offline_sub">Whisper Small · on-device</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="settings-badge badge-orange">~500ms</span>
+            <span class="chevron">›</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_llm">LLM — Языковая модель</div>
+        <div class="settings-item">
+          <div class="settings-item-icon">💻</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="llm_local">Локально (Wi-Fi)</div>
+            <div class="settings-item-subtitle" data-i18n="llm_local_sub">Qwen3.5-9B · Ollama · AI Max</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="settings-badge badge-green" data-i18n="badge_active">Активен</span>
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">☁️</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="llm_cloud">Облако (LTE)</div>
+            <div class="settings-item-subtitle" data-i18n="llm_cloud_sub">Claude API / GPT-4o</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">📱</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="llm_device">На устройстве</div>
+            <div class="settings-item-subtitle" data-i18n="llm_device_sub">Qwen3.5-4B · MLC LLM · Fold 7</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_wake">Wake Word</div>
+        <div class="settings-item">
+          <div class="settings-item-icon">🎯</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="wake_word">Слово активации</div>
+            <div class="settings-item-subtitle" data-i18n="wake_word_sub">«Взор» · Porcupine</div>
+          </div>
+          <div class="settings-item-trailing">
+            <div class="toggle on" onclick="toggleSwitch(this)" id="toggle-wake">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">⚡</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="wake_sens">Чувствительность</div>
+            <div class="settings-item-subtitle" data-i18n="wake_sens_sub">Средняя (0.5)</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_tts">TTS — Синтез речи</div>
+        <div class="settings-item">
+          <div class="settings-item-icon">🔊</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="tts_voice">Голос</div>
+            <div class="settings-item-subtitle" data-i18n="tts_voice_sub">Yandex SpeechKit · Alena</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">💾</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="tts_cache">Кэш фраз</div>
+            <div class="settings-item-subtitle" data-i18n="tts_cache_sub">«Понял», «Выполняю» и другие</div>
+          </div>
+          <div class="settings-item-trailing">
+            <div class="toggle on" onclick="toggleSwitch(this)">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_memory">Память и данные</div>
+        <div class="settings-item">
+          <div class="settings-item-icon">🧠</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="mem_persist">Персистентная память</div>
+            <div class="settings-item-subtitle" data-i18n="mem_persist_sub">Контакты, предпочтения · 43 записи</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">📋</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="mem_logs">Логи</div>
+            <div class="settings-item-subtitle" data-i18n="mem_logs_sub">Подробное логирование</div>
+          </div>
+          <div class="settings-item-trailing">
+            <div class="toggle" onclick="toggleLogsNav(this)" id="toggle-logs">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-icon">🔒</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="mem_encrypt">Шифрование SQLite</div>
+            <div class="settings-item-subtitle" data-i18n="mem_encrypt_sub">SQLCipher · включено</div>
+          </div>
+          <div class="settings-item-trailing">
+            <div class="toggle on" onclick="toggleSwitch(this)">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_lang">Язык / Language</div>
+        <div class="settings-item" id="lang-ru" onclick="setLang('ru')">
+          <div class="settings-item-icon">🇷🇺</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title">Русский</div>
+            <div class="settings-item-subtitle">Russian</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span id="lang-ru-check" style="font-size:20px">✅</span>
+          </div>
+        </div>
+        <div class="settings-item" id="lang-en" onclick="setLang('en')">
+          <div class="settings-item-icon">🇬🇧</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title">English</div>
+            <div class="settings-item-subtitle">Английский</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span id="lang-en-check" style="font-size:20px; opacity:0">✅</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_theme">Тема</div>
+        <div class="settings-item" id="theme-system" onclick="setTheme('system')">
+          <div class="settings-item-icon">📱</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="theme_system">Системная</div>
+            <div class="settings-item-subtitle" data-i18n="theme_system_sub">Следует настройкам устройства</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span id="theme-system-check" style="font-size:20px">✅</span>
+          </div>
+        </div>
+        <div class="settings-item" id="theme-light" onclick="setTheme('light')">
+          <div class="settings-item-icon">☀️</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="theme_light">Светлая</div>
+            <div class="settings-item-subtitle" data-i18n="theme_light_sub">Всегда светлая тема</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span id="theme-light-check" style="font-size:20px; opacity:0">✅</span>
+          </div>
+        </div>
+        <div class="settings-item" id="theme-dark" onclick="setTheme('dark')">
+          <div class="settings-item-icon">🌙</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="theme_dark">Тёмная</div>
+            <div class="settings-item-subtitle" data-i18n="theme_dark_sub">Всегда тёмная тема</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span id="theme-dark-check" style="font-size:20px; opacity:0">✅</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="s_about">Об устройстве</div>
+        <div class="settings-item">
+          <div class="settings-item-icon">ℹ️</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="about_app">Взор</div>
+            <div class="settings-item-subtitle" data-i18n="about_app_sub">Версия 0.1.0-alpha · Sprint 1</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        <div class="settings-item" onclick="navigate('logs')">
+          <div class="settings-item-icon">📄</div>
+          <div class="settings-item-content">
+            <div class="settings-item-title" data-i18n="about_logs">Просмотр логов</div>
+            <div class="settings-item-subtitle" data-i18n="about_logs_sub">Открыть экран логов</div>
+          </div>
+          <div class="settings-item-trailing">
+            <span class="chevron">›</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ SCREEN 5: LOGS ═══ -->
+  <div class="screen" id="screen-logs">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="navigate('settings')">←</button>
+      <span class="bar-title">Логи</span>
+      <button class="icon-btn" onclick="showSnackbar('Логи скопированы')">📋</button>
+      <button class="icon-btn" onclick="showSnackbar('Логи очищены')">🗑️</button>
+    </div>
+
+    <div class="seg-control">
+      <div class="seg-item active" onclick="setLogLevel(this,'ALL')">Все</div>
+      <div class="seg-item" onclick="setLogLevel(this,'WARN')">Предупр.</div>
+      <div class="seg-item" onclick="setLogLevel(this,'ERROR')">Ошибки</div>
+    </div>
+
+    <div class="log-toolbar">
+      <div class="log-search">🔍 <span>Поиск по логам...</span></div>
+    </div>
+
+    <div class="log-area">
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:12.045</span>
+          <span class="log-tag">WakeWord</span>
+          <span class="log-msg">Активация — wake word обнаружен</span>
+        </div>
+        <div class="log-body">
+trigger: "Взор"
+engine: Porcupine v3.0
+confidence: 0.94
+sensitivity: 0.5
+audio_rms: 0.023</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:12.102</span>
+          <span class="log-tag">STT</span>
+          <span class="log-msg">Начало записи аудио (Yandex SpeechKit)</span>
+        </div>
+        <div class="log-body">
+mode: STREAMING
+sample_rate: 16000 Hz
+channels: 1 (mono)
+vad: Silero v4
+endpoint: stt.api.cloud.yandex.net:443</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:13.287</span>
+          <span class="log-tag">STT</span>
+          <span class="log-msg">Транскрипт получен: "Что за здание передо мной?"</span>
+        </div>
+        <div class="log-body">
+text: "Что за здание передо мной?"
+confidence: 0.97
+latency_ms: 184
+words: 5
+lang: ru-RU</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:13.301</span>
+          <span class="log-tag">IntentRouter</span>
+          <span class="log-msg">Intent: VISION_QUERY → захват кадра</span>
+        </div>
+        <div class="log-body">
+intent: VISION_QUERY
+classifier: Qwen3.5-0.8B
+confidence: 0.91
+latency_ms: 12
+action: CAPTURE_FRAME → LLM</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:13.388</span>
+          <span class="log-tag">Vision</span>
+          <span class="log-msg">Кадр захвачен с очков Ray-Ban</span>
+        </div>
+        <div class="log-body">
+source: META_DAT_SDK
+resolution: 1280x960
+format: JPEG
+size_kb: 187
+latency_ms: 87</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:13.420</span>
+          <span class="log-tag">LLM</span>
+          <span class="log-msg">Запрос к AI Max (Qwen3.5-9B via Ollama)</span>
+        </div>
+        <div class="log-body">
+model: qwen3.5:9b
+backend: Ollama
+host: 192.168.1.100:11434
+input_tokens: 412
+image_attached: true
+prompt_strategy: VISION_QA</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level INFO">INFO</span>
+          <span class="log-time">14:33:13.820</span>
+          <span class="log-tag">LLM</span>
+          <span class="log-msg">Ответ получен · 400ms · 87 токенов</span>
+        </div>
+        <div class="log-body">
+output_tokens: 87
+latency_ms: 400
+tokens_per_sec: 217
+total_pipeline_ms: 632
+response_preview: "Вижу здание в стиле конструктивизма..."</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level WARN">WARN</span>
+          <span class="log-time">14:33:14.102</span>
+          <span class="log-tag">TTS</span>
+          <span class="log-msg">TTS latency выше нормы (620ms)</span>
+        </div>
+        <div class="log-body">
+engine: Yandex SpeechKit TTS
+voice: alena
+text_len: 142
+latency_ms: 620
+threshold_ms: 500
+reason: network_congestion
+fallback: none (threshold not exceeded)</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level DEBUG">DEBUG</span>
+          <span class="log-time">14:33:14.780</span>
+          <span class="log-tag">Memory</span>
+          <span class="log-msg">Проверка persistent memory — нет новых паттернов</span>
+        </div>
+        <div class="log-body">
+session_messages: 3
+extraction_prompt: sent to LLM
+result: null (no patterns to save)
+db_records: 43
+lru_evictions: 0</div>
+      </div>
+
+      <div class="log-entry">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-level ERROR">ERROR</span>
+          <span class="log-time">09:12:03.444</span>
+          <span class="log-tag">BT</span>
+          <span class="log-msg">Bluetooth соединение прервано</span>
+        </div>
+        <div class="log-body">
+device: Ray-Ban Meta Gen 2
+mac: CC:4B:73:xx:xx:xx
+reason: GATT_CONN_TIMEOUT
+retry_count: 3
+reconnect_delay_ms: 5000
+status: reconnected after 8.2s</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SIDEBAR OVERLAY -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- CHAT SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Чаты</span>
+      <button class="sidebar-new-btn" onclick="closeSidebar(); showSnackbar('Новый чат создан')">+</button>
+    </div>
+
+    <div class="sidebar-search">🔍 <span>Поиск по чатам</span></div>
+
+    <div class="sidebar-chats">
+      <div class="sidebar-day-label">Сегодня</div>
+
+      <div class="chat-row active" onclick="selectChat(this, 'Что за здание?')">
+        <div class="chat-row-icon">🏛️</div>
+        <div class="chat-row-info">
+          <div class="chat-row-title">«Что за здание передо мной?»</div>
+          <div class="chat-row-preview">Ищу информацию... Судя по вывескам...</div>
+        </div>
+        <div class="chat-row-time">14:32</div>
+        <button class="chat-row-menu" onclick="openCtxMenu(event, this)">⋮</button>
+        <div class="ctx-menu" id="ctx0">
+          <div class="ctx-item" onclick="closeCtx()">✏️ Переименовать</div>
+          <div class="ctx-item" onclick="closeCtx()">📌 Закрепить</div>
+          <div class="ctx-item" onclick="closeCtx()">📤 Экспорт</div>
+          <div class="ctx-item danger" onclick="closeCtx(); showSnackbar('Чат удалён')">🗑️ Удалить</div>
+        </div>
+      </div>
+
+      <div class="chat-row" onclick="selectChat(this, 'Сфотографируй меню')">
+        <div class="chat-row-icon">🍽️</div>
+        <div class="chat-row-info">
+          <div class="chat-row-title">«Сфотографируй это меню»</div>
+          <div class="chat-row-preview">1 фото · Vision · Ресторан Пушкин</div>
+        </div>
+        <div class="chat-row-time">12:15</div>
+        <button class="chat-row-menu" onclick="openCtxMenu(event, this)">⋮</button>
+        <div class="ctx-menu" id="ctx1">
+          <div class="ctx-item" onclick="closeCtx()">✏️ Переименовать</div>
+          <div class="ctx-item" onclick="closeCtx()">📌 Закрепить</div>
+          <div class="ctx-item" onclick="closeCtx()">📤 Экспорт</div>
+          <div class="ctx-item danger" onclick="closeCtx(); showSnackbar('Чат удалён')">🗑️ Удалить</div>
+        </div>
+      </div>
+
+      <div class="chat-row" onclick="selectChat(this, 'Позвони маме')">
+        <div class="chat-row-icon">📞</div>
+        <div class="chat-row-info">
+          <div class="chat-row-title">«Позвони маме»</div>
+          <div class="chat-row-preview">Исходящий звонок · WhatsApp</div>
+        </div>
+        <div class="chat-row-time">10:08</div>
+        <button class="chat-row-menu" onclick="openCtxMenu(event, this)">⋮</button>
+        <div class="ctx-menu" id="ctx2">
+          <div class="ctx-item" onclick="closeCtx()">✏️ Переименовать</div>
+          <div class="ctx-item" onclick="closeCtx()">📌 Закрепить</div>
+          <div class="ctx-item" onclick="closeCtx()">📤 Экспорт</div>
+          <div class="ctx-item danger" onclick="closeCtx(); showSnackbar('Чат удалён')">🗑️ Удалить</div>
+        </div>
+      </div>
+
+      <div class="sidebar-day-label">Вчера</div>
+
+      <div class="chat-row" onclick="selectChat(this, 'Запиши это')">
+        <div class="chat-row-icon">🎬</div>
+        <div class="chat-row-info">
+          <div class="chat-row-title">«Запиши это»</div>
+          <div class="chat-row-preview">Видеозапись · 0:23 · 12 МБ</div>
+        </div>
+        <div class="chat-row-time">Вчера</div>
+        <button class="chat-row-menu" onclick="openCtxMenu(event, this)">⋮</button>
+        <div class="ctx-menu" id="ctx3">
+          <div class="ctx-item" onclick="closeCtx()">✏️ Переименовать</div>
+          <div class="ctx-item" onclick="closeCtx()">📌 Закрепить</div>
+          <div class="ctx-item" onclick="closeCtx()">📤 Экспорт</div>
+          <div class="ctx-item danger" onclick="closeCtx(); showSnackbar('Чат удалён')">🗑️ Удалить</div>
+        </div>
+      </div>
+
+      <div class="chat-row" onclick="selectChat(this, 'Переведи вывеску')">
+        <div class="chat-row-icon">🌐</div>
+        <div class="chat-row-info">
+          <div class="chat-row-title">«Переведи вывеску»</div>
+          <div class="chat-row-preview">"Open for business" — Открыто...</div>
+        </div>
+        <div class="chat-row-time">Вчера</div>
+        <button class="chat-row-menu" onclick="openCtxMenu(event, this)">⋮</button>
+        <div class="ctx-menu" id="ctx4">
+          <div class="ctx-item" onclick="closeCtx()">✏️ Переименовать</div>
+          <div class="ctx-item" onclick="closeCtx()">📌 Закрепить</div>
+          <div class="ctx-item" onclick="closeCtx()">📤 Экспорт</div>
+          <div class="ctx-item danger" onclick="closeCtx(); showSnackbar('Чат удалён')">🗑️ Удалить</div>
+        </div>
+      </div>
+
+      <div class="sidebar-day-label">3 марта</div>
+
+      <div class="chat-row" onclick="selectChat(this, 'Погода на завтра')">
+        <div class="chat-row-icon">🌤️</div>
+        <div class="chat-row-info">
+          <div class="chat-row-title">«Погода на завтра»</div>
+          <div class="chat-row-preview">Завтра в Москве +4°C, облачно...</div>
+        </div>
+        <div class="chat-row-time">3 мар</div>
+        <button class="chat-row-menu" onclick="openCtxMenu(event, this)">⋮</button>
+        <div class="ctx-menu" id="ctx5">
+          <div class="ctx-item" onclick="closeCtx()">✏️ Переименовать</div>
+          <div class="ctx-item" onclick="closeCtx()">📌 Закрепить</div>
+          <div class="ctx-item" onclick="closeCtx()">📤 Экспорт</div>
+          <div class="ctx-item danger" onclick="closeCtx(); showSnackbar('Чат удалён')">🗑️ Удалить</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- DIALOG -->
+  <div class="dialog-overlay" id="dialog">
+    <div class="dialog">
+      <div class="dialog-title">Нет новых уведомлений</div>
+      <div class="dialog-body">Все сессии завершились успешно. Последнее подключение: 14:33.</div>
+      <div class="dialog-actions">
+        <button class="btn-text secondary" onclick="closeDialog()">Закрыть</button>
+        <button class="btn-text primary" onclick="closeDialog()">ОК</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SNACKBAR -->
+  <div class="snackbar" id="snackbar"></div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="nav-item active" id="nav-home" onclick="navigate('home')">
+      <div class="nav-icon-wrap">🏠</div>
+      <span class="nav-label">Главная</span>
+    </div>
+    <div class="nav-item" id="nav-conversation" onclick="navigate('conversation')">
+      <div class="nav-icon-wrap">💬</div>
+      <span class="nav-label">Чаты</span>
+    </div>
+    <div class="nav-item" id="nav-history" onclick="navigate('history')">
+      <div class="nav-icon-wrap">📋</div>
+      <span class="nav-label">История</span>
+    </div>
+    <div class="nav-item" id="nav-settings" onclick="navigate('settings')">
+      <div class="nav-icon-wrap">⚙️</div>
+      <span class="nav-label">Настройки</span>
+    </div>
+  </nav>
+</div>
+
+<script>
+  // Sidebar
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebar-overlay').classList.add('open');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+    closeCtx();
+  }
+  function selectChat(row, title) {
+    document.querySelectorAll('.chat-row').forEach(r => r.classList.remove('active'));
+    row.classList.add('active');
+    document.querySelector('#screen-conversation .bar-title').textContent = '«' + title + '»';
+    closeSidebar();
+  }
+
+  // Context menu in sidebar
+  let openCtxId = null;
+  function openCtxMenu(e, btn) {
+    e.stopPropagation();
+    closeCtx();
+    const menu = btn.nextElementSibling;
+    menu.classList.add('open');
+    openCtxId = menu;
+  }
+  function closeCtx() {
+    if (openCtxId) { openCtxId.classList.remove('open'); openCtxId = null; }
+  }
+  function showCtxMenuTop() {
+    showSnackbar('Переименовать / Экспорт / Удалить');
+  }
+
+  // ── Theme ─────────────────────────────────────────────
+  let currentTheme = 'system';
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function applyThemeClass(isDark) {
+    document.querySelector('.device-frame').classList.toggle('dark-theme', isDark);
+  }
+
+  function setTheme(t) {
+    currentTheme = t;
+    ['system','light','dark'].forEach(id => {
+      document.getElementById('theme-' + id + '-check').style.opacity = (t === id) ? '1' : '0';
+    });
+    if (t === 'system') {
+      applyThemeClass(mq.matches);
+      mq.onchange = e => applyThemeClass(e.matches);
+    } else {
+      mq.onchange = null;
+      applyThemeClass(t === 'dark');
+    }
+    const key = 'snack_theme_' + t;
+    showSnackbar(i18n[lang][key]);
+  }
+
+  // init: follow system
+  mq.onchange = e => { if (currentTheme === 'system') applyThemeClass(e.matches); };
+  applyThemeClass(mq.matches);
+
+  // ── i18n ──────────────────────────────────────────────
+  const i18n = {
+    ru: {
+      // bottom nav
+      nav_home: 'Главная', nav_chats: 'Чаты', nav_history: 'История', nav_settings: 'Настройки',
+      // home
+      home_title: 'Взор',
+      glasses_label: 'Ray-Ban Meta Gen 2',
+      glasses_name: 'Мои очки',
+      stat_battery: 'Батарея', stat_temp: 'Темп.', stat_bt: 'Связь',
+      connected: 'Подключены',
+      fab_hint: 'Нажмите или скажите «Взор»',
+      qs_requests: 'Запросов сегодня', qs_latency: 'Средняя задержка',
+      qs_mode: 'Режим AI (Wi-Fi)', qs_photos: 'Фото сегодня',
+      recent_title: 'Последние сессии',
+      // chats screen
+      chats_title: 'Чаты',
+      sidebar_search: '🔍 Поиск по чатам',
+      day_today: 'Сегодня', day_yesterday: 'Вчера',
+      ctx_rename: '✏️ Переименовать', ctx_pin: '📌 Закрепить',
+      ctx_export: '📤 Экспорт', ctx_delete: '🗑️ Удалить',
+      // settings sections
+      s_stt: 'STT — Распознавание речи',
+      s_llm: 'LLM — Языковая модель',
+      s_wake: 'Wake Word',
+      s_tts: 'TTS — Синтез речи',
+      s_memory: 'Память и данные',
+      s_lang: 'Язык / Language',
+      s_theme: 'Тема',
+      theme_system: 'Системная', theme_system_sub: 'Следует настройкам устройства',
+      theme_light: 'Светлая', theme_light_sub: 'Всегда светлая тема',
+      theme_dark: 'Тёмная', theme_dark_sub: 'Всегда тёмная тема',
+      snack_theme_system: 'Тема: системная',
+      snack_theme_light: 'Тема: светлая',
+      snack_theme_dark: 'Тема: тёмная',
+      s_about: 'Об устройстве',
+      // settings items
+      stt_home: 'Дома (Wi-Fi)', stt_home_sub: 'Whisper V3 Turbo · AI Max',
+      stt_lte: 'На улице (LTE)', stt_lte_sub: 'Yandex SpeechKit',
+      stt_offline: 'Оффлайн', stt_offline_sub: 'Whisper Small · on-device',
+      llm_local: 'Локально (Wi-Fi)', llm_local_sub: 'Qwen3.5-9B · Ollama · AI Max',
+      llm_cloud: 'Облако (LTE)', llm_cloud_sub: 'Claude API / GPT-4o',
+      llm_device: 'На устройстве', llm_device_sub: 'Qwen3.5-4B · MLC LLM · Fold 7',
+      wake_word: 'Слово активации', wake_word_sub: '«Взор» · Porcupine',
+      wake_sens: 'Чувствительность', wake_sens_sub: 'Средняя (0.5)',
+      tts_voice: 'Голос', tts_voice_sub: 'Yandex SpeechKit · Alena',
+      tts_cache: 'Кэш фраз', tts_cache_sub: '«Понял», «Выполняю» и другие',
+      mem_persist: 'Персистентная память', mem_persist_sub: 'Контакты, предпочтения · 43 записи',
+      mem_logs: 'Логи', mem_logs_sub: 'Подробное логирование',
+      mem_encrypt: 'Шифрование SQLite', mem_encrypt_sub: 'SQLCipher · включено',
+      about_app: 'Взор', about_app_sub: 'Версия 0.1.0-alpha · Sprint 1',
+      about_logs: 'Просмотр логов', about_logs_sub: 'Открыть экран логов',
+      badge_active: 'Активен',
+      snack_saved: 'Сессия сохранена',
+      snack_new_chat: 'Новый чат создан',
+      snack_deleted: 'Чат удалён',
+      snack_logs_on: 'Логи включены',
+      snack_logs_off: 'Логи выключены',
+    },
+    en: {
+      nav_home: 'Home', nav_chats: 'Chats', nav_history: 'History', nav_settings: 'Settings',
+      home_title: 'Vzor',
+      glasses_label: 'Ray-Ban Meta Gen 2',
+      glasses_name: 'My Glasses',
+      stat_battery: 'Battery', stat_temp: 'Temp.', stat_bt: 'Link',
+      connected: 'Connected',
+      fab_hint: 'Tap or say "Vzor"',
+      qs_requests: 'Requests today', qs_latency: 'Avg latency',
+      qs_mode: 'AI mode (Wi-Fi)', qs_photos: 'Photos today',
+      recent_title: 'Recent sessions',
+      chats_title: 'Chats',
+      sidebar_search: '🔍 Search chats',
+      day_today: 'Today', day_yesterday: 'Yesterday',
+      ctx_rename: '✏️ Rename', ctx_pin: '📌 Pin',
+      ctx_export: '📤 Export', ctx_delete: '🗑️ Delete',
+      s_stt: 'STT — Speech Recognition',
+      s_llm: 'LLM — Language Model',
+      s_wake: 'Wake Word',
+      s_tts: 'TTS — Speech Synthesis',
+      s_memory: 'Memory & Data',
+      s_lang: 'Language / Язык',
+      s_theme: 'Theme',
+      theme_system: 'System', theme_system_sub: 'Follows device settings',
+      theme_light: 'Light', theme_light_sub: 'Always light theme',
+      theme_dark: 'Dark', theme_dark_sub: 'Always dark theme',
+      snack_theme_system: 'Theme: system',
+      snack_theme_light: 'Theme: light',
+      snack_theme_dark: 'Theme: dark',
+      s_about: 'About',
+      stt_home: 'Home (Wi-Fi)', stt_home_sub: 'Whisper V3 Turbo · AI Max',
+      stt_lte: 'Mobile (LTE)', stt_lte_sub: 'Yandex SpeechKit',
+      stt_offline: 'Offline', stt_offline_sub: 'Whisper Small · on-device',
+      llm_local: 'Local (Wi-Fi)', llm_local_sub: 'Qwen3.5-9B · Ollama · AI Max',
+      llm_cloud: 'Cloud (LTE)', llm_cloud_sub: 'Claude API / GPT-4o',
+      llm_device: 'On-device', llm_device_sub: 'Qwen3.5-4B · MLC LLM · Fold 7',
+      wake_word: 'Activation word', wake_word_sub: '"Vzor" · Porcupine',
+      wake_sens: 'Sensitivity', wake_sens_sub: 'Medium (0.5)',
+      tts_voice: 'Voice', tts_voice_sub: 'Yandex SpeechKit · Alena',
+      tts_cache: 'Phrase cache', tts_cache_sub: '"Got it", "On it" and others',
+      mem_persist: 'Persistent memory', mem_persist_sub: 'Contacts, preferences · 43 records',
+      mem_logs: 'Logs', mem_logs_sub: 'Verbose logging',
+      mem_encrypt: 'SQLite encryption', mem_encrypt_sub: 'SQLCipher · enabled',
+      about_app: 'Vzor', about_app_sub: 'Version 0.1.0-alpha · Sprint 1',
+      about_logs: 'View logs', about_logs_sub: 'Open logs screen',
+      badge_active: 'Active',
+      snack_saved: 'Session saved',
+      snack_new_chat: 'New chat created',
+      snack_deleted: 'Chat deleted',
+      snack_logs_on: 'Logging enabled',
+      snack_logs_off: 'Logging disabled',
+      s_theme: 'Theme',
+      theme_system: 'System', theme_system_sub: 'Follows device settings',
+      theme_light: 'Light', theme_light_sub: 'Always light theme',
+      theme_dark: 'Dark', theme_dark_sub: 'Always dark theme',
+    }
+  };
+
+  const bindMap = {
+    // nav labels
+    '#nav-home .nav-label': 'nav_home',
+    '#nav-conversation .nav-label': 'nav_chats',
+    '#nav-history .nav-label': 'nav_history',
+    '#nav-settings .nav-label': 'nav_settings',
+    // home
+    '#screen-home .bar-title': 'home_title',
+    '.glasses-label': 'glasses_label',
+    '.glasses-name': 'glasses_name',
+    '.fab-label': 'fab_hint',
+    // sidebar
+    '.sidebar-title': 'chats_title',
+    // settings section titles
+    '[data-i18n="s_stt"]': 's_stt',
+    '[data-i18n="s_llm"]': 's_llm',
+    '[data-i18n="s_wake"]': 's_wake',
+    '[data-i18n="s_tts"]': 's_tts',
+    '[data-i18n="s_memory"]': 's_memory',
+    '[data-i18n="s_lang"]': 's_lang',
+    '[data-i18n="s_about"]': 's_about',
+    // settings items
+    '[data-i18n="stt_home"]': 'stt_home', '[data-i18n="stt_home_sub"]': 'stt_home_sub',
+    '[data-i18n="stt_lte"]': 'stt_lte',   '[data-i18n="stt_lte_sub"]': 'stt_lte_sub',
+    '[data-i18n="stt_offline"]': 'stt_offline', '[data-i18n="stt_offline_sub"]': 'stt_offline_sub',
+    '[data-i18n="llm_local"]': 'llm_local', '[data-i18n="llm_local_sub"]': 'llm_local_sub',
+    '[data-i18n="llm_cloud"]': 'llm_cloud', '[data-i18n="llm_cloud_sub"]': 'llm_cloud_sub',
+    '[data-i18n="llm_device"]': 'llm_device', '[data-i18n="llm_device_sub"]': 'llm_device_sub',
+    '[data-i18n="wake_word"]': 'wake_word', '[data-i18n="wake_word_sub"]': 'wake_word_sub',
+    '[data-i18n="wake_sens"]': 'wake_sens', '[data-i18n="wake_sens_sub"]': 'wake_sens_sub',
+    '[data-i18n="tts_voice"]': 'tts_voice', '[data-i18n="tts_voice_sub"]': 'tts_voice_sub',
+    '[data-i18n="tts_cache"]': 'tts_cache', '[data-i18n="tts_cache_sub"]': 'tts_cache_sub',
+    '[data-i18n="mem_persist"]': 'mem_persist', '[data-i18n="mem_persist_sub"]': 'mem_persist_sub',
+    '[data-i18n="mem_logs"]': 'mem_logs',   '[data-i18n="mem_logs_sub"]': 'mem_logs_sub',
+    '[data-i18n="mem_encrypt"]': 'mem_encrypt', '[data-i18n="mem_encrypt_sub"]': 'mem_encrypt_sub',
+    '[data-i18n="s_theme"]': 's_theme',
+    '[data-i18n="theme_system"]': 'theme_system', '[data-i18n="theme_system_sub"]': 'theme_system_sub',
+    '[data-i18n="theme_light"]': 'theme_light',   '[data-i18n="theme_light_sub"]': 'theme_light_sub',
+    '[data-i18n="theme_dark"]': 'theme_dark',     '[data-i18n="theme_dark_sub"]': 'theme_dark_sub',
+    '[data-i18n="about_app"]': 'about_app', '[data-i18n="about_app_sub"]': 'about_app_sub',
+    '[data-i18n="about_logs"]': 'about_logs', '[data-i18n="about_logs_sub"]': 'about_logs_sub',
+    '[data-i18n="badge_active"]': 'badge_active',
+    '[data-i18n="sidebar_search"]': 'sidebar_search',
+    '[data-i18n="day_today"]': 'day_today',
+    '[data-i18n="day_yesterday"]': 'day_yesterday',
+  };
+
+  function applyLang() {
+    const t = i18n[lang];
+    for (const [sel, key] of Object.entries(bindMap)) {
+      document.querySelectorAll(sel).forEach(el => { if (t[key]) el.textContent = t[key]; });
+    }
+    // stat labels need special handling (multiple .stat-label)
+    const statLabels = document.querySelectorAll('#screen-home .stat-label');
+    if (statLabels[0]) statLabels[0].textContent = t.stat_battery;
+    if (statLabels[1]) statLabels[1].textContent = t.stat_temp;
+    if (statLabels[2]) statLabels[2].textContent = t.stat_bt;
+    // quick stat labels
+    const qs = document.querySelectorAll('.stat-card-label');
+    if (qs[0]) qs[0].textContent = t.qs_requests;
+    if (qs[1]) qs[1].textContent = t.qs_latency;
+    if (qs[2]) qs[2].textContent = t.qs_mode;
+    if (qs[3]) qs[3].textContent = t.qs_photos;
+    // connected badge text node
+    const badge = document.querySelector('.connected-badge');
+    if (badge) { badge.childNodes[badge.childNodes.length-1].textContent = ' ' + t.connected; }
+    // recent card title
+    const cardTitle = document.querySelector('#screen-home .card-title');
+    if (cardTitle) cardTitle.textContent = t.recent_title;
+    // sidebar search placeholder
+    const ss = document.querySelector('.sidebar-search span');
+    if (ss) ss.textContent = lang === 'ru' ? 'Поиск по чатам' : 'Search chats';
+    // ctx menu items (all)
+    document.querySelectorAll('.ctx-item:not(.danger)').forEach((el, i) => {
+      const labels = [t.ctx_rename, t.ctx_pin, t.ctx_export];
+      if (labels[i % 3]) el.textContent = labels[i % 3];
+    });
+    document.querySelectorAll('.ctx-item.danger').forEach(el => { el.textContent = t.ctx_delete; });
+    // sidebar day labels
+    const dayLabels = document.querySelectorAll('.sidebar-day-label');
+    if (dayLabels[0]) dayLabels[0].textContent = t.day_today;
+    if (dayLabels[1]) dayLabels[1].textContent = t.day_yesterday;
+  }
+
+  function setLang(l) {
+    lang = l;
+    document.getElementById('lang-ru-check').style.opacity = l === 'ru' ? '1' : '0';
+    document.getElementById('lang-en-check').style.opacity = l === 'en' ? '1' : '0';
+    applyLang();
+    showSnackbar(l === 'ru' ? 'Язык: Русский' : 'Language: English');
+  }
+
+  // Logs toggle wired to logs nav item visibility
+  function toggleLogsNav(toggle) {
+    toggle.classList.toggle('on');
+    const logsOn = toggle.classList.contains('on');
+    showSnackbar(logsOn ? i18n[lang].snack_logs_on : i18n[lang].snack_logs_off);
+  }
+
+  // Navigation
+  const screens = ['home','conversation','history','settings','logs'];
+  const navItems = ['home','conversation','history','settings'];
+
+  function navigate(screen) {
+    screens.forEach(s => {
+      document.getElementById('screen-' + s)?.classList.remove('active');
+    });
+    document.getElementById('screen-' + screen)?.classList.add('active');
+
+    navItems.forEach(n => {
+      document.getElementById('nav-' + n)?.classList.remove('active');
+    });
+    if (navItems.includes(screen)) {
+      document.getElementById('nav-' + screen)?.classList.add('active');
+    }
+  }
+
+  // Toggle
+  function toggleSwitch(el) {
+    el.classList.toggle('on');
+  }
+
+  // Mic recording simulation
+  let recording = false;
+  function toggleRecording() {
+    recording = !recording;
+    const btn = document.getElementById('mic-btn');
+    const row = document.getElementById('voice-row');
+    const txt = document.getElementById('transcript-text');
+    if (recording) {
+      btn.classList.add('recording');
+      btn.textContent = '⏹️';
+      txt.textContent = '';
+      // simulate waveform
+      row.innerHTML = '<div class="waveform" id="wf"></div><button class="mic-btn recording" id="mic-btn" onclick="toggleRecording()">⏹️</button>';
+      const wf = document.getElementById('wf');
+      for (let i = 0; i < 20; i++) {
+        const b = document.createElement('div');
+        b.className = 'wave-bar';
+        b.style.animationDelay = (i * 0.05) + 's';
+        b.style.height = (4 + Math.random() * 16) + 'px';
+        wf.appendChild(b);
+      }
+    } else {
+      recording = false;
+      row.innerHTML = '<span class="voice-transcript" id="transcript-text">Говорите или печатайте...</span><button class="mic-btn" id="mic-btn" onclick="toggleRecording()">🎤</button>';
+    }
+  }
+
+  // Log expand
+  function toggleLog(header) {
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+  }
+
+  // Filter chips
+  function setFilter(el) {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Log level seg
+  function setLogLevel(el, level) {
+    document.querySelectorAll('.seg-item').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Dialog
+  function showDialog() {
+    document.getElementById('dialog').classList.add('open');
+  }
+  function closeDialog() {
+    document.getElementById('dialog').classList.remove('open');
+  }
+
+  // Snackbar
+  let snackTimer;
+  function showSnackbar(msg) {
+    const sb = document.getElementById('snackbar');
+    sb.textContent = msg;
+    sb.classList.add('show');
+    clearTimeout(snackTimer);
+    snackTimer = setTimeout(() => sb.classList.remove('show'), 2500);
+  }
+</script>
+</body>
+</html>
