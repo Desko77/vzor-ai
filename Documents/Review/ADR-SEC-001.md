@@ -1,0 +1,75 @@
+# ADR-SEC-001: Политика обработки персональных данных
+
+**Статус:** Принято
+**Дата:** 2026-03-05
+**Контекст:** Vzor AI — voice assistant, обрабатывающий речь, фото с камеры и контакты пользователя
+
+---
+
+## Решение
+
+### 1. Перечень собираемых данных
+
+| Данные | Где хранятся | Срок хранения | Шифрование |
+|--------|-------------|---------------|------------|
+| Транскрипты речи (STT) | RAM (Session Memory) | До конца сессии | Нет (in-memory only) |
+| Фото с камеры | Временный кэш (/cache) | 24 часа, auto-cleanup | Нет (Android sandbox) |
+| Контакты | Lookup only (ContactsProvider) | Не хранятся | N/A |
+| Предпочтения (MemoryFact) | Room SQLite (memory_facts) | LRU ~100 записей | Android sandbox |
+| API-ключи | EncryptedSharedPreferences | Бессрочно | AES-256-GCM (Android Keystore) |
+| Логи сессий (SessionLog) | Room SQLite (session_log) | До удаления пользователем | Android sandbox |
+| История сообщений | Room SQLite (messages) | До удаления пользователем | Android sandbox |
+
+### 2. Внешние сервисы и DPA
+
+| Сервис | Данные | Условия |
+|--------|--------|---------|
+| Yandex SpeechKit (STT/TTS) | Аудио-фрагменты речи | Yandex Cloud DPA, данные не хранятся после обработки |
+| Google Cloud TTS | Текст для синтеза (EN) | Google Cloud DPA, данные не хранятся после обработки |
+| OpenAI Whisper API | Аудио-фрагменты речи | OpenAI DPA, 30-day retention policy |
+| Claude API / OpenAI API / Gemini API | Текстовые запросы | Соответствующие DPA провайдеров |
+| Tavily Search | Поисковые запросы | Tavily ToS |
+
+**Важно:** при использовании Ollama (LOCAL_AI) данные не покидают локальную сеть пользователя.
+
+### 3. Шифрование
+
+- **At-rest (API keys):** EncryptedSharedPreferences (AES-256-GCM, Android Keystore)
+- **At-rest (DB):** стандартная Android sandbox изоляция. SQLCipher — отложено до появления PII/медицинских/финансовых данных
+- **In-transit:** TLS 1.3 для всех HTTP-соединений (OkHttp default)
+- **Bluetooth:** BT 5.3 encrypted link (Ray-Ban Meta hardware)
+
+### 4. Согласие пользователя
+
+- **RECORD_AUDIO permission:** запрашивается при первом использовании STT
+- **CAMERA permission:** запрашивается при первом использовании Vision
+- **READ_CONTACTS permission:** запрашивается при первом вызове Call/Message action
+- **First-run onboarding:** экран с объяснением какие данные собираются и зачем
+
+### 5. Право на удаление
+
+- Настройки → «Очистить историю» — удаляет messages + conversations
+- Настройки → «Очистить память» — удаляет memory_facts
+- Настройки → «Удалить все данные» — полный wipe: DB + DataStore + EncryptedPrefs + кэш
+
+### 6. Применимое законодательство
+
+- **152-ФЗ «О персональных данных»** (РФ) — основной
+- **GDPR** — если пользователь в ЕС (future consideration)
+- Vzor не является оператором ПД в смысле 152-ФЗ, т.к. все данные обрабатываются локально на устройстве пользователя. Внешние API-вызовы делаются от имени пользователя с его API-ключами.
+
+---
+
+## Критерии для внедрения SQLCipher
+
+Миграция на полное шифрование БД (SQLCipher) потребуется когда:
+- MemoryFact начнёт хранить PII (медицинские, финансовые данные)
+- Появятся регуляторные требования (HIPAA, PCI-DSS)
+- Будет реализован экспорт/портабельность данных
+
+## Последствия
+
+- Минимальный объём хранимых данных (data minimization)
+- API keys защищены Keystore-backed шифрованием
+- Пользователь контролирует удаление своих данных
+- Внешние сервисы получают только необходимый минимум (аудио/текст для обработки)

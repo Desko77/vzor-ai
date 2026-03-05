@@ -89,6 +89,15 @@ dependencies {
     // DataStore
     implementation(libs.datastore)
 
+    // Security
+    implementation(libs.security.crypto)
+
     // Coroutines
     implementation(libs.coroutines)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
 }
