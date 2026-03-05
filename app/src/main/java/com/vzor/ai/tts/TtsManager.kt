@@ -199,16 +199,92 @@ class TtsManager @Inject constructor(
                 googleTts.speakDirect(text, "en-US")
             }
             else -> {
-                // Mixed or unknown — try Yandex first
-                val audio = yandexTts.synthesize(text, lang = "ru-RU")
-                if (audio != null) {
-                    playAudioBytes(audio, YandexTtsProvider.SAMPLE_RATE)
-                } else {
-                    googleTts.speakDirect(text, "ru-RU")
+                // Mixed RU+EN — segment by language and synthesize each part
+                val segments = segmentByLanguage(text)
+                for ((segment, segLang) in segments) {
+                    if (isCancelled.get()) break
+                    when (segLang) {
+                        "ru" -> {
+                            val audio = yandexTts.synthesize(segment, lang = "ru-RU")
+                            if (audio != null) {
+                                playAudioBytes(audio, YandexTtsProvider.SAMPLE_RATE)
+                            } else {
+                                googleTts.speakDirect(segment, "ru-RU")
+                            }
+                        }
+                        "en" -> googleTts.speakDirect(segment, "en-US")
+                    }
                 }
             }
         }
     }
+
+    /**
+     * Segment mixed-language text into contiguous runs of the same script.
+     * Each segment is a Pair of (text, languageCode) where languageCode is "ru" or "en".
+     *
+     * Algorithm:
+     * 1. Iterate characters, track current script (CYRILLIC/LATIN)
+     * 2. Non-alphabetic chars (digits, punctuation, spaces) attach to current segment
+     * 3. When script changes at a word boundary, start a new segment
+     */
+    fun segmentByLanguage(text: String): List<Pair<String, String>> {
+        if (text.isBlank()) return emptyList()
+
+        val segments = mutableListOf<Pair<StringBuilder, String>>()
+        var currentLang = "ru" // Default to Russian
+        var currentSegment = StringBuilder()
+        var foundFirstAlpha = false
+
+        for (char in text) {
+            val charLang = when {
+                char.isCyrillic() -> "ru"
+                char.isLatinLetter() -> "en"
+                else -> null // non-alphabetic: attach to current segment
+            }
+
+            if (charLang != null && !foundFirstAlpha) {
+                currentLang = charLang
+                foundFirstAlpha = true
+            }
+
+            if (charLang != null && charLang != currentLang) {
+                // Language switch — find word boundary (split at last space)
+                val built = currentSegment.toString()
+                val lastSpace = built.lastIndexOf(' ')
+                if (lastSpace > 0) {
+                    // Split: everything up to last space stays in current segment
+                    val keep = built.substring(0, lastSpace + 1)
+                    val move = built.substring(lastSpace + 1)
+                    if (keep.isNotBlank()) {
+                        segments.add(StringBuilder(keep) to currentLang)
+                    }
+                    currentSegment = StringBuilder(move)
+                } else {
+                    if (currentSegment.isNotBlank()) {
+                        segments.add(currentSegment to currentLang)
+                    }
+                    currentSegment = StringBuilder()
+                }
+                currentLang = charLang
+            }
+
+            currentSegment.append(char)
+        }
+
+        if (currentSegment.isNotBlank()) {
+            segments.add(currentSegment to currentLang)
+        }
+
+        return segments.map { (sb, lang) -> sb.toString().trim() to lang }
+            .filter { it.first.isNotEmpty() }
+    }
+
+    private fun Char.isCyrillic(): Boolean =
+        this in '\u0400'..'\u04FF'
+
+    private fun Char.isLatinLetter(): Boolean =
+        this in 'A'..'Z' || this in 'a'..'z'
 
     /**
      * Detect the dominant language in a text string.
@@ -239,21 +315,35 @@ class TtsManager @Inject constructor(
         scope.launch {
             try {
                 val lang = detectLanguage(text)
-                val audio = when (lang) {
+                when (lang) {
                     "en" -> {
-                        // For English, use Google TTS directly (no bytes returned)
                         googleTts.speakDirect(text, "en-US")
-                        null
+                    }
+                    "mixed" -> {
+                        // Segment mixed text and synthesize each part with appropriate provider
+                        for ((segment, segLang) in segmentByLanguage(text)) {
+                            if (isCancelled.get()) break
+                            when (segLang) {
+                                "ru" -> {
+                                    val audio = yandexTts.synthesize(segment, lang = "ru-RU")
+                                    if (audio != null) {
+                                        audioQueue.add(AudioChunk(audio, YandexTtsProvider.SAMPLE_RATE))
+                                        ensurePlayback()
+                                    } else {
+                                        googleTts.speakDirect(segment, "ru-RU")
+                                    }
+                                }
+                                "en" -> googleTts.speakDirect(segment, "en-US")
+                            }
+                        }
                     }
                     else -> {
-                        // Russian or mixed — use Yandex
-                        yandexTts.synthesize(text, lang = "ru-RU")
+                        val audio = yandexTts.synthesize(text, lang = "ru-RU")
+                        if (audio != null) {
+                            audioQueue.add(AudioChunk(audio, YandexTtsProvider.SAMPLE_RATE))
+                            ensurePlayback()
+                        }
                     }
-                }
-
-                if (audio != null) {
-                    audioQueue.add(AudioChunk(audio, YandexTtsProvider.SAMPLE_RATE))
-                    ensurePlayback()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "TTS synthesis failed for: ${text.take(50)}...", e)

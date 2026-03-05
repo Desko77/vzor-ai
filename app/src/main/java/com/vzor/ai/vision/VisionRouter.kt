@@ -10,7 +10,8 @@ import javax.inject.Singleton
 @Singleton
 class VisionRouter @Inject constructor(
     private val perceptionCache: PerceptionCache,
-    private val visionRepository: VisionRepository
+    private val visionRepository: VisionRepository,
+    private val onDeviceProcessor: OnDeviceVisionProcessor
 ) {
 
     companion object {
@@ -48,6 +49,40 @@ class VisionRouter @Inject constructor(
                 val ttl = determineTtl(sceneData)
                 perceptionCache.put(CACHE_KEY_SCENE, sceneData, ttl)
             }
+    }
+
+    /**
+     * Analyzes a scene with on-device OCR preprocessing.
+     * For text-focused queries, tries ML Kit OCR first — if successful, skips cloud VLM.
+     * Otherwise falls through to standard [analyzeScene].
+     */
+    suspend fun analyzeSceneWithPreprocessing(
+        imageBytes: ByteArray,
+        prompt: String,
+        forceRefresh: Boolean = false
+    ): Result<SceneData> {
+        // Try on-device OCR for text-focused queries
+        if (onDeviceProcessor.isTextQuery(prompt)) {
+            val ocrResult = onDeviceProcessor.recognizeText(imageBytes)
+            if (ocrResult != null && ocrResult.fullText.isNotBlank() &&
+                ocrResult.confidence >= OnDeviceVisionProcessor.MIN_CONFIDENCE) {
+
+                val sceneData = SceneData(
+                    sceneId = UUID.randomUUID().toString(),
+                    timestamp = System.currentTimeMillis(),
+                    sceneSummary = ocrResult.fullText,
+                    objects = emptyList(),
+                    text = ocrResult.blocks.map { it.text },
+                    stability = 0.9f,
+                    ttlMs = PerceptionCache.DefaultTtl.TEXT_MS
+                )
+                perceptionCache.put(CACHE_KEY_SCENE, sceneData, PerceptionCache.DefaultTtl.TEXT_MS)
+                return Result.success(sceneData)
+            }
+        }
+
+        // Fall through to cloud VLM
+        return analyzeScene(imageBytes, prompt, forceRefresh)
     }
 
     /**

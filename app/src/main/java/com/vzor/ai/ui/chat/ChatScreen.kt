@@ -24,6 +24,8 @@ import com.vzor.ai.R
 import com.vzor.ai.domain.model.GlassesState
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
+import com.vzor.ai.domain.model.VoiceState
+import com.vzor.ai.ui.components.VoiceStateIndicator
 import com.vzor.ai.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -56,10 +58,21 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            if (uiState.voiceState != VoiceState.IDLE) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                VoiceStateIndicator(
+                                    state = uiState.voiceState,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                         GlassesStatusBadge(uiState.glassesState)
                     }
                 },

@@ -4,14 +4,153 @@ import com.vzor.ai.domain.model.IntentType
 import com.vzor.ai.domain.model.VzorIntent
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.min
 
 /**
- * Rule-based MVP intent classifier.
+ * Weighted scoring intent classifier with fuzzy matching.
  * Classifies Russian-language user transcripts into [VzorIntent]s
- * using keyword matching. Will be replaced by an ML model in later sprints.
+ * using weighted keywords + Levenshtein distance for typo tolerance.
  */
 @Singleton
 class IntentClassifier @Inject constructor() {
+
+    private data class WeightedKeyword(
+        val keyword: String,
+        val weight: Float = 1.0f,
+        val fuzzyThreshold: Int = 0 // max Levenshtein distance, 0 = exact match only
+    )
+
+    private data class IntentRule(
+        val intentType: IntentType,
+        val keywords: List<WeightedKeyword>,
+        val baseConfidence: Float,
+        val requiresVision: Boolean = false,
+        val requiresConfirmation: Boolean = false,
+        val slotExtractor: ((String) -> Map<String, String>)?  = null
+    )
+
+    private val rules: List<IntentRule> = listOf(
+        // Vision
+        IntentRule(
+            intentType = IntentType.VISION_QUERY,
+            keywords = listOf(
+                WeightedKeyword("что видишь", 1.0f),
+                WeightedKeyword("что это", 0.8f),
+                WeightedKeyword("посмотри", 0.9f),
+                WeightedKeyword("опиши что", 0.9f),
+                WeightedKeyword("прочитай", 0.8f),
+                WeightedKeyword("что перед", 0.7f)
+            ),
+            baseConfidence = 0.9f,
+            requiresVision = true
+        ),
+        // Call
+        IntentRule(
+            intentType = IntentType.CALL_CONTACT,
+            keywords = listOf(
+                WeightedKeyword("позвони", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("набери", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("вызови", 0.9f, fuzzyThreshold = 1)
+            ),
+            baseConfidence = 0.85f,
+            requiresConfirmation = true,
+            slotExtractor = { text -> extractSlot(text, listOf("позвони", "набери", "вызови"), "contact") }
+        ),
+        // Message
+        IntentRule(
+            intentType = IntentType.SEND_MESSAGE,
+            keywords = listOf(
+                WeightedKeyword("напиши", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("отправь сообщение", 1.0f),
+                WeightedKeyword("скажи в", 0.8f)
+            ),
+            baseConfidence = 0.85f,
+            requiresConfirmation = true,
+            slotExtractor = { text -> extractSlot(text, listOf("напиши", "отправь сообщение", "скажи в"), "contact") }
+        ),
+        // Music
+        IntentRule(
+            intentType = IntentType.PLAY_MUSIC,
+            keywords = listOf(
+                WeightedKeyword("включи музыку", 1.0f),
+                WeightedKeyword("поставь", 0.8f),
+                WeightedKeyword("следующий трек", 0.9f),
+                WeightedKeyword("пауза", 0.9f)
+            ),
+            baseConfidence = 0.8f
+        ),
+        // Navigate
+        IntentRule(
+            intentType = IntentType.NAVIGATE,
+            keywords = listOf(
+                WeightedKeyword("навигация", 1.0f),
+                WeightedKeyword("маршрут", 1.0f),
+                WeightedKeyword("как доехать", 0.9f),
+                WeightedKeyword("как пройти", 0.9f)
+            ),
+            baseConfidence = 0.8f,
+            slotExtractor = { text ->
+                extractSlot(
+                    text,
+                    listOf("навигация", "маршрут до", "как доехать до", "как пройти до", "маршрут", "как доехать", "как пройти"),
+                    "destination"
+                )
+            }
+        ),
+        // Reminder
+        IntentRule(
+            intentType = IntentType.SET_REMINDER,
+            keywords = listOf(
+                WeightedKeyword("напомни", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("таймер", 0.9f),
+                WeightedKeyword("будильник", 0.9f)
+            ),
+            baseConfidence = 0.8f
+        ),
+        // Translate
+        IntentRule(
+            intentType = IntentType.TRANSLATE,
+            keywords = listOf(
+                WeightedKeyword("переведи", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("перевод", 0.9f),
+                WeightedKeyword("режим перевода", 1.0f)
+            ),
+            baseConfidence = 0.85f
+        ),
+        // Web Search
+        IntentRule(
+            intentType = IntentType.WEB_SEARCH,
+            keywords = listOf(
+                WeightedKeyword("найди в интернете", 1.0f),
+                WeightedKeyword("загугли", 1.0f),
+                WeightedKeyword("поищи", 0.9f)
+            ),
+            baseConfidence = 0.8f,
+            slotExtractor = { text ->
+                extractSlot(text, listOf("найди в интернете", "загугли", "поищи"), "query")
+            }
+        ),
+        // Memory
+        IntentRule(
+            intentType = IntentType.MEMORY_QUERY,
+            keywords = listOf(
+                WeightedKeyword("где я припарковал", 1.0f),
+                WeightedKeyword("что ты запомнил", 0.9f),
+                WeightedKeyword("что я говорил", 0.8f)
+            ),
+            baseConfidence = 0.8f
+        ),
+        // Repeat
+        IntentRule(
+            intentType = IntentType.REPEAT_LAST,
+            keywords = listOf(
+                WeightedKeyword("повтори", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("что ты сказал", 0.9f),
+                WeightedKeyword("ещё раз", 0.9f)
+            ),
+            baseConfidence = 0.9f
+        )
+    )
 
     /**
      * Classify a user transcript into a [VzorIntent].
@@ -21,126 +160,135 @@ class IntentClassifier @Inject constructor() {
      */
     fun classify(transcript: String): VzorIntent {
         val lower = transcript.lowercase().trim()
-
-        return when {
-            // Vision
-            lower.containsAny("что видишь", "что это", "посмотри", "опиши что", "прочитай") ->
-                VzorIntent(IntentType.VISION_QUERY, 0.9f, requiresVision = true)
-
-            // Call
-            lower.containsAny("позвони", "набери", "вызови") -> {
-                val contact = extractContact(lower, listOf("позвони", "набери", "вызови"))
-                VzorIntent(
-                    type = IntentType.CALL_CONTACT,
-                    confidence = 0.85f,
-                    slots = buildSlots("contact" to contact),
-                    requiresConfirmation = true
-                )
-            }
-
-            // Message
-            lower.containsAny("напиши", "отправь сообщение", "скажи в") -> {
-                val contact = extractContact(lower, listOf("напиши", "отправь сообщение", "скажи в"))
-                VzorIntent(
-                    type = IntentType.SEND_MESSAGE,
-                    confidence = 0.85f,
-                    slots = buildSlots("contact" to contact),
-                    requiresConfirmation = true
-                )
-            }
-
-            // Music
-            lower.containsAny("включи музыку", "поставь", "следующий трек", "пауза") ->
-                VzorIntent(IntentType.PLAY_MUSIC, 0.8f)
-
-            // Navigate
-            lower.containsAny("навигация", "маршрут", "как доехать", "как пройти") -> {
-                val destination = extractAfterKeyword(lower, listOf("навигация", "маршрут до", "как доехать до", "как пройти до", "маршрут", "как доехать", "как пройти"))
-                VzorIntent(
-                    type = IntentType.NAVIGATE,
-                    confidence = 0.8f,
-                    slots = buildSlots("destination" to destination)
-                )
-            }
-
-            // Remind
-            lower.containsAny("напомни", "таймер", "будильник") ->
-                VzorIntent(IntentType.SET_REMINDER, 0.8f)
-
-            // Translate
-            lower.containsAny("переведи", "перевод", "режим перевода") ->
-                VzorIntent(IntentType.TRANSLATE, 0.85f)
-
-            // Web Search
-            lower.containsAny("найди в интернете", "загугли", "поищи") -> {
-                val query = extractAfterKeyword(lower, listOf("найди в интернете", "загугли", "поищи"))
-                VzorIntent(
-                    type = IntentType.WEB_SEARCH,
-                    confidence = 0.8f,
-                    slots = buildSlots("query" to query)
-                )
-            }
-
-            // Memory
-            lower.containsAny("где я припарковал", "что ты запомнил", "что я говорил") ->
-                VzorIntent(IntentType.MEMORY_QUERY, 0.8f)
-
-            // Repeat
-            lower.containsAny("повтори", "что ты сказал", "ещё раз") ->
-                VzorIntent(IntentType.REPEAT_LAST, 0.9f)
-
-            // Default — general question
-            else -> VzorIntent(IntentType.GENERAL_QUESTION, 0.5f)
+        if (lower.isBlank()) {
+            return VzorIntent(IntentType.GENERAL_QUESTION, 0.5f)
         }
+
+        var bestRule: IntentRule? = null
+        var bestScore = 0f
+
+        for (rule in rules) {
+            val score = scoreRule(lower, rule)
+            if (score > bestScore || (score == bestScore && bestRule != null && rule.baseConfidence > bestRule.baseConfidence)) {
+                bestScore = score
+                bestRule = rule
+            }
+        }
+
+        if (bestRule == null || bestScore < 0.5f) {
+            return VzorIntent(IntentType.GENERAL_QUESTION, 0.5f)
+        }
+
+        // Confidence scales with score: base confidence boosted by multi-keyword hits
+        val confidence = min(bestRule.baseConfidence + (bestScore - 1f) * 0.1f, 1.0f)
+            .coerceAtLeast(bestRule.baseConfidence * 0.8f)
+
+        val slots = bestRule.slotExtractor?.invoke(lower) ?: emptyMap()
+
+        return VzorIntent(
+            type = bestRule.intentType,
+            confidence = confidence,
+            slots = slots,
+            requiresConfirmation = bestRule.requiresConfirmation,
+            requiresVision = bestRule.requiresVision
+        )
     }
 
     /**
-     * Extract a contact name that follows a trigger keyword.
-     * E.g. "позвони маме" → "маме", "набери Сашу" → "Сашу"
+     * Score a rule against a transcript. Higher = better match.
+     * Returns 0 if no keyword matches.
      */
-    private fun extractContact(text: String, keywords: List<String>): String? {
-        for (keyword in keywords) {
-            val index = text.indexOf(keyword)
-            if (index >= 0) {
-                val afterKeyword = text.substring(index + keyword.length).trim()
-                if (afterKeyword.isNotBlank()) {
-                    return afterKeyword.split(" ").take(3).joinToString(" ")
+    private fun scoreRule(text: String, rule: IntentRule): Float {
+        var totalScore = 0f
+        for (wk in rule.keywords) {
+            if (text.contains(wk.keyword)) {
+                totalScore += wk.weight
+            } else if (wk.fuzzyThreshold > 0 && fuzzyContains(text, wk.keyword, wk.fuzzyThreshold)) {
+                totalScore += wk.weight * 0.8f // Fuzzy match gets 80% weight
+            }
+        }
+        return totalScore
+    }
+
+    /**
+     * Check if text contains a fuzzy match for the keyword (word-level).
+     * Splits both text and keyword into words and checks if any contiguous
+     * subsequence of text words matches the keyword words within the Levenshtein threshold.
+     */
+    private fun fuzzyContains(text: String, keyword: String, threshold: Int): Boolean {
+        val textWords = text.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val kwWords = keyword.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+
+        if (kwWords.isEmpty() || textWords.size < kwWords.size) return false
+
+        // For single-word keywords, check each text word
+        if (kwWords.size == 1) {
+            return textWords.any { levenshtein(it, kwWords[0]) <= threshold }
+        }
+
+        // For multi-word keywords, check contiguous subsequences
+        for (i in 0..textWords.size - kwWords.size) {
+            val allMatch = kwWords.indices.all { j ->
+                levenshtein(textWords[i + j], kwWords[j]) <= threshold
+            }
+            if (allMatch) return true
+        }
+        return false
+    }
+
+    /**
+     * Levenshtein distance between two strings. O(n*m) — acceptable for short strings.
+     */
+    internal fun levenshtein(a: String, b: String): Int {
+        if (a == b) return 0
+        if (a.isEmpty()) return b.length
+        if (b.isEmpty()) return a.length
+
+        var prev = IntArray(b.length + 1) { it }
+        var curr = IntArray(b.length + 1)
+
+        for (i in 1..a.length) {
+            curr[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                curr[j] = minOf(
+                    curr[j - 1] + 1,     // insertion
+                    prev[j] + 1,          // deletion
+                    prev[j - 1] + cost    // substitution
+                )
+            }
+            val temp = prev
+            prev = curr
+            curr = temp
+        }
+        return prev[b.length]
+    }
+
+    companion object {
+        /**
+         * Extract a slot value that follows trigger keywords.
+         */
+        private fun extractSlot(
+            text: String,
+            keywords: List<String>,
+            slotName: String
+        ): Map<String, String> {
+            // Try longest keywords first for more specific matches
+            for (keyword in keywords.sortedByDescending { it.length }) {
+                val index = text.indexOf(keyword)
+                if (index >= 0) {
+                    val afterKeyword = text.substring(index + keyword.length).trim()
+                    if (afterKeyword.isNotBlank()) {
+                        val value = if (slotName == "contact") {
+                            afterKeyword.split(" ").take(3).joinToString(" ")
+                        } else {
+                            afterKeyword
+                        }
+                        return mapOf(slotName to value)
+                    }
                 }
             }
+            return emptyMap()
         }
-        return null
-    }
-
-    /**
-     * Extract text following a trigger keyword for slots like destination, query, etc.
-     */
-    private fun extractAfterKeyword(text: String, keywords: List<String>): String? {
-        // Try longest keywords first for more specific matches
-        for (keyword in keywords.sortedByDescending { it.length }) {
-            val index = text.indexOf(keyword)
-            if (index >= 0) {
-                val afterKeyword = text.substring(index + keyword.length).trim()
-                if (afterKeyword.isNotBlank()) {
-                    return afterKeyword
-                }
-            }
-        }
-        return null
-    }
-
-    /**
-     * Build a slot map, filtering out null values.
-     */
-    private fun buildSlots(vararg pairs: Pair<String, String?>): Map<String, String> {
-        return pairs.mapNotNull { (key, value) ->
-            value?.let { key to it }
-        }.toMap()
-    }
-
-    /**
-     * Extension function: returns true if the string contains any of the given substrings.
-     */
-    private fun String.containsAny(vararg keywords: String): Boolean {
-        return keywords.any { this.contains(it) }
     }
 }

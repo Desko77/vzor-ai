@@ -7,10 +7,12 @@ import com.vzor.ai.domain.model.Conversation
 import com.vzor.ai.domain.model.GlassesState
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
+import com.vzor.ai.domain.model.VoiceState
 import com.vzor.ai.domain.repository.AiRepository
 import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
+import com.vzor.ai.orchestrator.VoiceOrchestrator
 import com.vzor.ai.speech.SttService
 import com.vzor.ai.tts.TtsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +27,7 @@ data class ChatUiState(
     val currentInput: String = "",
     val isRecording: Boolean = false,
     val glassesState: GlassesState = GlassesState.DISCONNECTED,
+    val voiceState: VoiceState = VoiceState.IDLE,
     val currentConversation: Conversation? = null
 )
 
@@ -34,6 +37,7 @@ class ChatViewModel @Inject constructor(
     private val visionRepository: VisionRepository,
     private val conversationRepository: ConversationRepository,
     private val glassesManager: GlassesManager,
+    private val voiceOrchestrator: VoiceOrchestrator,
     private val sttService: SttService,
     private val ttsManager: TtsManager,
     private val prefs: PreferencesManager
@@ -46,6 +50,11 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             glassesManager.state.collect { state ->
                 _uiState.update { it.copy(glassesState = state) }
+            }
+        }
+        viewModelScope.launch {
+            voiceOrchestrator.state.collect { voiceState ->
+                _uiState.update { it.copy(voiceState = voiceState) }
             }
         }
     }
@@ -118,6 +127,12 @@ class ChatViewModel @Inject constructor(
                 }
                 .collect { chunk ->
                     responseBuilder.append(chunk)
+
+                    // Streaming TTS: feed tokens during generation
+                    if (_uiState.value.glassesState == GlassesState.CONNECTED) {
+                        ttsManager.onToken(chunk)
+                    }
+
                     val assistantMessage = Message(
                         role = MessageRole.ASSISTANT,
                         content = responseBuilder.toString(),
@@ -136,15 +151,15 @@ class ChatViewModel @Inject constructor(
                     }
                 }
 
+            // Flush remaining TTS buffer after streaming completes
+            if (_uiState.value.glassesState == GlassesState.CONNECTED) {
+                ttsManager.onStreamEnd()
+            }
+
             // Save final assistant message
             val finalMessage = _uiState.value.messages.lastOrNull { it.role == MessageRole.ASSISTANT }
             if (finalMessage != null) {
                 conversationRepository.saveMessage(finalMessage)
-
-                // TTS: read response aloud if glasses connected
-                if (_uiState.value.glassesState == GlassesState.CONNECTED) {
-                    ttsManager.speak(finalMessage.content)
-                }
             }
         }
     }

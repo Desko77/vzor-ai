@@ -189,4 +189,51 @@ class IntentClassifierTest {
         val result = classifier.classify("   ")
         assertEquals(IntentType.GENERAL_QUESTION, result.type)
     }
+
+    // --- Fuzzy matching ---
+
+    @Test
+    fun `fuzzy match - позвани (typo) still matches CALL_CONTACT`() {
+        val result = classifier.classify("Позвани маме")
+        assertEquals(IntentType.CALL_CONTACT, result.type)
+        assertEquals("маме", result.slots["contact"])
+    }
+
+    @Test
+    fun `fuzzy match - повтари (typo) still matches REPEAT_LAST`() {
+        val result = classifier.classify("Повтари")
+        assertEquals(IntentType.REPEAT_LAST, result.type)
+    }
+
+    @Test
+    fun `fuzzy match - переведы (typo) still matches TRANSLATE`() {
+        val result = classifier.classify("Переведы это")
+        assertEquals(IntentType.TRANSLATE, result.type)
+    }
+
+    // --- Weighted scoring ---
+
+    @Test
+    fun `multi-keyword boost gives higher confidence`() {
+        val single = classifier.classify("Позвони маме")
+        val double = classifier.classify("Позвони набери маме")
+        assertTrue("Double keyword should have >= confidence than single",
+            double.confidence >= single.confidence)
+    }
+
+    @Test
+    fun `vision query scores correctly for что ты видишь на улице`() {
+        val result = classifier.classify("Что ты видишь на улице")
+        assertEquals(IntentType.VISION_QUERY, result.type)
+    }
+
+    // --- Levenshtein distance ---
+
+    @Test
+    fun `levenshtein distance calculations`() {
+        assertEquals(0, classifier.levenshtein("abc", "abc"))
+        assertEquals(1, classifier.levenshtein("позвони", "позвани"))
+        assertEquals(1, classifier.levenshtein("повтори", "повтари"))
+        assertEquals(3, classifier.levenshtein("кот", "собака"))
+    }
 }

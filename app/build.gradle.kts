@@ -103,6 +103,9 @@ dependencies {
     // Google Generative AI (Gemini)
     implementation(libs.generativeai)
 
+    // ML Kit (on-device OCR)
+    implementation(libs.mlkit.text)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

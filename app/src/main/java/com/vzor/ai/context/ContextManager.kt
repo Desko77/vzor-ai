@@ -27,6 +27,8 @@ class ContextManager @Inject constructor(
         private const val TAG = "ContextManager"
         /** Maximum token budget for session context window. */
         private const val MAX_SESSION_TOKENS = 2048
+        /** Maximum number of messages in session memory (architecture spec: 20). */
+        private const val MAX_SESSION_MESSAGES = 20
         /** Maximum persistent memory facts before cleanup. */
         private const val MAX_PERSISTENT_FACTS = 100
     }
@@ -87,6 +89,9 @@ class ContextManager @Inject constructor(
 
     private fun evictIfOverBudget() {
         while (totalTokens() > MAX_SESSION_TOKENS && sessionMessages.size > 1) {
+            sessionMessages.pollFirst()
+        }
+        while (sessionMessages.size > MAX_SESSION_MESSAGES) {
             sessionMessages.pollFirst()
         }
     }
