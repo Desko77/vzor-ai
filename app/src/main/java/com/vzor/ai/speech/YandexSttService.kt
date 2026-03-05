@@ -163,22 +163,22 @@ class YandexSttService @Inject constructor(
             .post(requestBody)
             .build()
 
-        val response = httpClient.newCall(request).execute()
+        return httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                Log.e(TAG, "Yandex STT error ${response.code}: $errorBody")
+                throw RuntimeException("Yandex STT API error: ${response.code} - $errorBody")
+            }
 
-        if (!response.isSuccessful) {
-            val errorBody = response.body?.string() ?: "Unknown error"
-            Log.e(TAG, "Yandex STT error ${response.code}: $errorBody")
-            throw RuntimeException("Yandex STT API error: ${response.code} - $errorBody")
-        }
+            val responseBody = response.body?.string() ?: return@use ""
 
-        val responseBody = response.body?.string() ?: return ""
-
-        return try {
-            val json = JSONObject(responseBody)
-            json.optString("result", "")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse Yandex STT response", e)
-            ""
+            try {
+                val json = JSONObject(responseBody)
+                json.optString("result", "")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse Yandex STT response", e)
+                ""
+            }
         }
     }
 }

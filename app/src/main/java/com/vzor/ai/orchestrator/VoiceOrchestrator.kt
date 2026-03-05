@@ -9,12 +9,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.Closeable
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,7 +33,7 @@ class VoiceOrchestrator @Inject constructor(
     private val sttService: SttService,
     private val ttsService: TtsService,
     private val intentClassifier: IntentClassifier
-) {
+) : Closeable {
     companion object {
         private const val TAG = "VoiceOrchestrator"
         private const val ERROR_RECOVERY_DELAY_MS = 3000L
@@ -47,7 +50,7 @@ class VoiceOrchestrator @Inject constructor(
     private var errorRecoveryJob: Job? = null
 
     /** Listeners for state transitions (telemetry, UI, etc.). */
-    private val transitionListeners = mutableListOf<(VoiceState, VoiceState, VoiceEvent) -> Unit>()
+    private val transitionListeners = CopyOnWriteArrayList<(VoiceState, VoiceState, VoiceEvent) -> Unit>()
 
     init {
         scope.launch {
@@ -88,6 +91,12 @@ class VoiceOrchestrator @Inject constructor(
     /** Register a listener that is called on every valid state transition. */
     fun addTransitionListener(listener: (from: VoiceState, to: VoiceState, event: VoiceEvent) -> Unit) {
         transitionListeners.add(listener)
+    }
+
+    /** Release resources and cancel the internal coroutine scope. */
+    override fun close() {
+        errorRecoveryJob?.cancel()
+        scope.cancel()
     }
 
     // ---- FSM core ----

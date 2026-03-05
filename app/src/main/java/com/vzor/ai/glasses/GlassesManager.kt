@@ -89,8 +89,8 @@ class GlassesManager @Inject constructor(
     private var connectedDevice: BluetoothDevice? = null
     private var audioCaptureJob: Job? = null
     private var cameraStreamJob: Job? = null
-    @Volatile private var isAudioCapturing = false
-    @Volatile private var isCameraStreaming = false
+    private val isAudioCapturing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val isCameraStreaming = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private var scoReceiver: BroadcastReceiver? = null
     private var headsetReceiver: BroadcastReceiver? = null
@@ -257,7 +257,7 @@ class GlassesManager @Inject constructor(
             Log.w(TAG, "Cannot start audio capture — no glasses connected")
             return
         }
-        if (isAudioCapturing) {
+        if (!isAudioCapturing.compareAndSet(false, true)) {
             Log.d(TAG, "Audio capture already running")
             return
         }
@@ -271,7 +271,6 @@ class GlassesManager @Inject constructor(
                 Log.w(TAG, "SCO connection failed, audio will use device mic as fallback")
             }
 
-            isAudioCapturing = true
             Log.d(TAG, "Audio capture started (SCO=${scoConnected})")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start audio capture", e)
@@ -343,18 +342,17 @@ class GlassesManager @Inject constructor(
      *   }
      */
     fun startCameraStream() {
-        if (isCameraStreaming) {
+        if (!isCameraStreaming.compareAndSet(false, true)) {
             Log.d(TAG, "Camera stream already running")
             return
         }
 
-        isCameraStreaming = true
         cameraStreamJob = scope.launch {
             Log.d(TAG, "Camera stream started (awaiting DAT SDK integration)")
             // TODO: Replace with DAT SDK continuous camera stream
             // The loop below is a placeholder that keeps the job alive
             // so stopCameraStream() can cancel it cleanly.
-            while (isActive && isCameraStreaming) {
+            while (isActive && isCameraStreaming.get()) {
                 delay(1000)
             }
         }
@@ -469,7 +467,7 @@ class GlassesManager @Inject constructor(
     }
 
     private fun stopAudioCaptureInternal() {
-        isAudioCapturing = false
+        isAudioCapturing.set(false)
         audioCaptureJob?.cancel()
         audioCaptureJob = null
 
@@ -485,7 +483,7 @@ class GlassesManager @Inject constructor(
     }
 
     private fun stopCameraStreamInternal() {
-        isCameraStreaming = false
+        isCameraStreaming.set(false)
         cameraStreamJob?.cancel()
         cameraStreamJob = null
         Log.d(TAG, "Camera stream stopped")

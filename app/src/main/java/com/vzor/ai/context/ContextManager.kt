@@ -1,9 +1,14 @@
 package com.vzor.ai.context
 
+import android.util.Log
 import com.vzor.ai.data.local.PreferencesManager
 import com.vzor.ai.domain.model.MemoryFact
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.repository.MemoryRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentLinkedDeque
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,10 +24,14 @@ class ContextManager @Inject constructor(
     private val prefs: PreferencesManager
 ) {
     companion object {
+        private const val TAG = "ContextManager"
         /** Maximum token budget for session context window. */
         private const val MAX_SESSION_TOKENS = 2048
+        /** Maximum persistent memory facts before cleanup. */
+        private const val MAX_PERSISTENT_FACTS = 100
     }
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sessionMessages = ConcurrentLinkedDeque<Message>()
 
     /**
@@ -59,9 +68,16 @@ class ContextManager @Inject constructor(
         }
     }
 
-    /** Clears all session messages from RAM. */
+    /** Clears all session messages from RAM and triggers persistent memory cleanup. */
     fun clearSession() {
         sessionMessages.clear()
+        scope.launch {
+            try {
+                memoryRepository.cleanup(MAX_PERSISTENT_FACTS)
+            } catch (e: Exception) {
+                Log.w(TAG, "Persistent memory cleanup failed", e)
+            }
+        }
     }
 
     /**

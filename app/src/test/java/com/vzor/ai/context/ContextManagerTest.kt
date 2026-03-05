@@ -7,6 +7,7 @@ import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
 import com.vzor.ai.domain.repository.MemoryRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -149,6 +150,38 @@ class ContextManagerTest {
         val facts = manager.getPersistentFacts("парковка", 10)
         assertEquals(1, facts.size)
         assertEquals("Машина припаркована у ТЦ", facts[0].fact)
+    }
+
+    // --- Token budget boundary ---
+
+    @Test
+    fun `adding message just over budget evicts oldest`() {
+        // Fill exactly to budget: 2048 tokens = 8192 chars
+        val halfBudget = "A".repeat(4 * 1024) // 1024 tokens each
+        manager.addToSession(testMessage(halfBudget, "first"))
+        manager.addToSession(testMessage(halfBudget, "second"))
+        // Exactly at 2048 tokens — both should be kept
+        assertEquals(2, manager.getSessionContext().size)
+
+        // One more small message pushes over budget
+        manager.addToSession(testMessage("A".repeat(40), "third")) // +10 tokens
+        val context = manager.getSessionContext()
+        // First message should be evicted
+        assertTrue("Expected first message evicted", context.none { it.id == "first" })
+        assertTrue("Expected third message kept", context.any { it.id == "third" })
+    }
+
+    // --- Cleanup integration ---
+
+    @Test
+    fun `clearSession triggers persistent memory cleanup`() = runTest {
+        manager.addToSession(testMessage("test"))
+        manager.clearSession()
+
+        // Give the background coroutine time to execute
+        kotlinx.coroutines.delay(100)
+
+        coVerify(timeout = 1000) { memoryRepo.cleanup(100) }
     }
 
     // --- Helpers ---
