@@ -1,6 +1,17 @@
 package com.vzor.ai.tts
 
 /**
+ * Высокоуровневый интерфейс TTS-сервиса.
+ * Реализация: [TtsManager] — оркестрирует несколько TTS-провайдеров.
+ */
+interface TtsService {
+    fun stop()
+    fun onToken(token: String)
+    fun onStreamEnd()
+    suspend fun speak(text: String)
+}
+
+/**
  * TTS provider interface for synthesizing speech from text.
  * Implementations handle different TTS backends (Yandex, Google, etc.)
  */

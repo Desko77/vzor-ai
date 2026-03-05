@@ -39,7 +39,7 @@ class TtsManager @Inject constructor(
     private val googleTts: GoogleTtsProvider,
     private val phraseCacheManager: PhraseCacheManager,
     private val prefs: PreferencesManager
-) {
+) : TtsService {
 
     companion object {
         private const val TAG = "TtsManager"
@@ -82,7 +82,7 @@ class TtsManager @Inject constructor(
      * Tokens accumulate until the SentenceSegmenter determines a sentence is ready,
      * then that sentence is synthesized and queued for playback.
      */
-    fun onToken(token: String) {
+    override fun onToken(token: String) {
         if (isCancelled.get()) return
 
         if (tokenBuffer.isEmpty()) {
@@ -115,7 +115,7 @@ class TtsManager @Inject constructor(
     /**
      * Called when the LLM stream ends. Flushes any remaining buffered tokens.
      */
-    fun onStreamEnd() {
+    override fun onStreamEnd() {
         val remainingText = tokenBuffer.toString().trim()
         tokenBuffer.clear()
         wordCount = 0
@@ -140,6 +140,14 @@ class TtsManager @Inject constructor(
             val text = phraseCacheManager.getText(phrase, lang)
             synthesizeAndQueue(text)
         }
+    }
+
+    /**
+     * Stop all: clear buffers, stop TTS synthesis, stop audio playback.
+     * Реализация [TtsService.stop].
+     */
+    override fun stop() {
+        cancelAll()
     }
 
     /**
@@ -179,7 +187,7 @@ class TtsManager @Inject constructor(
     /**
      * Speak full text (non-streaming). Synthesizes and plays the entire text.
      */
-    suspend fun speak(text: String) {
+    override suspend fun speak(text: String) {
         if (text.isBlank()) return
 
         isCancelled.set(false)

@@ -24,7 +24,9 @@ import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.speech.SttService
 import com.vzor.ai.speech.WhisperSttService
+import com.vzor.ai.tts.TtsManager
 import com.vzor.ai.tts.TtsProvider
+import com.vzor.ai.tts.TtsService
 import com.vzor.ai.tts.YandexTtsProvider
 import dagger.Binds
 import dagger.Module
@@ -166,4 +168,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTtsProvider(impl: YandexTtsProvider): TtsProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindTtsService(impl: TtsManager): TtsService
 }
