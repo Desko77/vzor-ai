@@ -96,7 +96,8 @@ data class OllamaChatRequest(
     val model: String,
     val messages: List<OllamaMessage>,
     val stream: Boolean = false,
-    val options: OllamaOptions? = OllamaOptions()
+    val options: OllamaOptions? = OllamaOptions(),
+    @Json(name = "keep_alive") val keepAlive: String? = "5m"
 )
 
 @JsonClass(generateAdapter = true)

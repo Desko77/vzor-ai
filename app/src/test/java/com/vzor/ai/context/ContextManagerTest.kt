@@ -184,6 +184,32 @@ class ContextManagerTest {
         coVerify(timeout = 1000) { memoryRepo.cleanup(100) }
     }
 
+    // --- 20-message hard cap ---
+
+    @Test
+    fun `session memory hard capped at 20 messages`() {
+        // Add 25 short messages (4 chars = 1 token each, total 25 tokens << 2048 budget)
+        repeat(25) { i ->
+            manager.addToSession(testMessage("m$i.", "msg_$i"))
+        }
+        val context = manager.getSessionContext()
+        assertEquals("Session must be capped at 20 messages", 20, context.size)
+        // Oldest 5 (msg_0..msg_4) should be evicted, newest (msg_24) kept
+        assertEquals("msg_5", context.first().id)
+        assertEquals("msg_24", context.last().id)
+    }
+
+    @Test
+    fun `message cap applies even when under token budget`() {
+        // 25 messages × 1 token each = 25 tokens, well under 2048 budget
+        repeat(25) { i ->
+            manager.addToSession(testMessage("abcd", "m_$i"))
+        }
+        val context = manager.getSessionContext()
+        assertTrue("Expected <= 20 messages, got ${context.size}", context.size <= 20)
+        assertEquals("m_24", context.last().id)
+    }
+
     // --- Helpers ---
 
     private fun testMessage(content: String, id: String = "test") = Message(
