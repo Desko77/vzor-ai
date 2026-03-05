@@ -14,6 +14,9 @@ import com.vzor.ai.domain.model.SttProvider
 import com.vzor.ai.domain.model.TtsProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -105,52 +108,65 @@ class PreferencesManager @Inject constructor(
     }
 
     // --- API keys (EncryptedSharedPreferences, чувствительные) ---
+    // Используем MutableStateFlow для реактивности: запись в EncryptedSP + обновление Flow.
 
-    val geminiApiKey: Flow<String> = dataStore.data.map {
+    private val _geminiApiKey = MutableStateFlow(
         encryptedPrefs.getString(ENCRYPTED_GEMINI_KEY, "") ?: ""
-    }
+    )
+    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
 
-    val claudeApiKey: Flow<String> = dataStore.data.map {
+    private val _claudeApiKey = MutableStateFlow(
         encryptedPrefs.getString(ENCRYPTED_CLAUDE_KEY, "") ?: ""
-    }
+    )
+    val claudeApiKey: StateFlow<String> = _claudeApiKey.asStateFlow()
 
-    val openAiApiKey: Flow<String> = dataStore.data.map {
+    private val _openAiApiKey = MutableStateFlow(
         encryptedPrefs.getString(ENCRYPTED_OPENAI_KEY, "") ?: ""
-    }
+    )
+    val openAiApiKey: StateFlow<String> = _openAiApiKey.asStateFlow()
 
-    val yandexApiKey: Flow<String> = dataStore.data.map {
+    private val _yandexApiKey = MutableStateFlow(
         encryptedPrefs.getString(ENCRYPTED_YANDEX_KEY, "") ?: ""
-    }
+    )
+    val yandexApiKey: StateFlow<String> = _yandexApiKey.asStateFlow()
 
-    val glmApiKey: Flow<String> = dataStore.data.map {
+    private val _glmApiKey = MutableStateFlow(
         encryptedPrefs.getString(ENCRYPTED_GLM_KEY, "") ?: ""
-    }
+    )
+    val glmApiKey: StateFlow<String> = _glmApiKey.asStateFlow()
 
-    val tavilyApiKey: Flow<String> = dataStore.data.map {
+    private val _tavilyApiKey = MutableStateFlow(
         encryptedPrefs.getString(ENCRYPTED_TAVILY_KEY, "") ?: ""
-    }
+    )
+    val tavilyApiKey: StateFlow<String> = _tavilyApiKey.asStateFlow()
 
     suspend fun setGeminiApiKey(key: String) {
         encryptedPrefs.edit().putString(ENCRYPTED_GEMINI_KEY, key).apply()
+        _geminiApiKey.value = key
     }
 
     suspend fun setClaudeApiKey(key: String) {
         encryptedPrefs.edit().putString(ENCRYPTED_CLAUDE_KEY, key).apply()
+        _claudeApiKey.value = key
     }
 
     suspend fun setOpenAiApiKey(key: String) {
         encryptedPrefs.edit().putString(ENCRYPTED_OPENAI_KEY, key).apply()
+        _openAiApiKey.value = key
     }
 
     suspend fun setYandexApiKey(key: String) {
         encryptedPrefs.edit().putString(ENCRYPTED_YANDEX_KEY, key).apply()
+        _yandexApiKey.value = key
     }
 
     suspend fun setGlmApiKey(key: String) {
         encryptedPrefs.edit().putString(ENCRYPTED_GLM_KEY, key).apply()
+        _glmApiKey.value = key
     }
 
     suspend fun setTavilyApiKey(key: String) {
         encryptedPrefs.edit().putString(ENCRYPTED_TAVILY_KEY, key).apply()
+        _tavilyApiKey.value = key
     }
 }

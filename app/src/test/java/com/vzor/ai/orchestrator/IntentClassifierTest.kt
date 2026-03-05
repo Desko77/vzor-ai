@@ -165,4 +165,28 @@ class IntentClassifierTest {
         assertEquals(IntentType.CALL_CONTACT, result.type)
         assertNull(result.slots["contact"])
     }
+
+    // --- UNKNOWN type ---
+
+    @Test
+    fun `UNKNOWN type exists in IntentType enum`() {
+        // Verify UNKNOWN is a valid enum value (defined but currently unused by keyword classifier)
+        val unknown = IntentType.UNKNOWN
+        assertNotNull(unknown)
+    }
+
+    @Test
+    fun `gibberish input returns GENERAL_QUESTION as default fallback`() {
+        // Current keyword-based classifier defaults to GENERAL_QUESTION for unmatched input.
+        // UNKNOWN is reserved for future ML classifier when confidence is below threshold.
+        val result = classifier.classify("🔥🎉🌈 zzz qqq xyzzy")
+        assertEquals(IntentType.GENERAL_QUESTION, result.type)
+        assertEquals(0.5f, result.confidence, 0.01f)
+    }
+
+    @Test
+    fun `whitespace-only input returns GENERAL_QUESTION`() {
+        val result = classifier.classify("   ")
+        assertEquals(IntentType.GENERAL_QUESTION, result.type)
+    }
 }

@@ -60,6 +60,9 @@ object NetworkModule {
             } else {
                 HttpLoggingInterceptor.Level.HEADERS
             }
+            redactHeader("Authorization")
+            redactHeader("X-API-Key")
+            redactHeader("x-api-key")
         })
         .connectTimeout(60, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)

@@ -1,6 +1,8 @@
 package com.vzor.ai.context
 
 import com.vzor.ai.data.local.PreferencesManager
+import com.vzor.ai.domain.model.MemoryCategory
+import com.vzor.ai.domain.model.MemoryFact
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
 import com.vzor.ai.domain.repository.MemoryRepository
@@ -96,6 +98,57 @@ class ContextManagerTest {
         val facts = manager.getPersistentFacts("парковка", 10)
         // Falls back to top facts when search is empty
         assertTrue(facts.isEmpty())
+    }
+
+    // --- Empty state ---
+
+    @Test
+    fun `getSessionContext on empty session returns empty list`() {
+        val newManager = ContextManager(memoryRepo, prefs)
+        val context = newManager.getSessionContext()
+        assertTrue(context.isEmpty())
+    }
+
+    // --- Boundary conditions ---
+
+    @Test
+    fun `message exactly at budget is kept`() {
+        // 2048 tokens * 4 chars/token = 8192 chars
+        val exactContent = "A".repeat(4 * 2048)
+        manager.addToSession(testMessage(exactContent, "exact"))
+        val context = manager.getSessionContext()
+        assertEquals(1, context.size)
+        assertEquals("exact", context[0].id)
+    }
+
+    @Test
+    fun `adding many messages evicts oldest keeping newest`() {
+        // Add 25 messages of ~100 tokens each (400 chars)
+        // 25 * 100 = 2500 tokens > 2048 budget
+        repeat(25) { i ->
+            manager.addToSession(testMessage("A".repeat(400), "msg_$i"))
+        }
+        val context = manager.getSessionContext()
+        // Should keep only messages that fit in budget
+        assertTrue("Expected <= 20 messages, got ${context.size}", context.size <= 20)
+        assertTrue(context.isNotEmpty())
+        // Last message should be the most recent
+        assertEquals("msg_24", context.last().id)
+    }
+
+    @Test
+    fun `getPersistentFacts with query returns search results when available`() = runTest {
+        val fact = MemoryFact(
+            id = 1,
+            fact = "Машина припаркована у ТЦ",
+            category = MemoryCategory.PERSONAL,
+            importance = 5,
+            createdAt = System.currentTimeMillis()
+        )
+        coEvery { memoryRepo.searchFacts("парковка", 10) } returns listOf(fact)
+        val facts = manager.getPersistentFacts("парковка", 10)
+        assertEquals(1, facts.size)
+        assertEquals("Машина припаркована у ТЦ", facts[0].fact)
     }
 
     // --- Helpers ---
