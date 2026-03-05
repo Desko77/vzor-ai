@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vzor AI</string>
+
+    <!-- Chat -->
+    <string name="empty_chat_title">Привет!</string>
+    <string name="empty_chat_subtitle">Я ваш AI-ассистент. Напишите или скажите что-нибудь.</string>
+    <string name="input_hint">Введите сообщение…</string>
+    <string name="send">Отправить</string>
+    <string name="new_chat">Новый чат</string>
+    <string name="voice_input">Голосовой ввод</string>
+    <string name="stop_recording">Остановить запись</string>
+    <string name="take_photo">Сделать фото</string>
+
+    <!-- Settings -->
+    <string name="settings">Настройки</string>
+    <string name="ai_provider">AI-провайдер</string>
+    <string name="api_keys">API ключи</string>
+    <string name="stt_provider">Распознавание речи (STT)</string>
+    <string name="tts_provider">Синтез речи (TTS)</string>
+    <string name="system_prompt">Системный промпт</string>
+    <string name="system_prompt_hint">Инструкции для AI-ассистента</string>
+
+    <!-- Glasses -->
+    <string name="glasses_disconnected">Очки не подключены</string>
+    <string name="glasses_connecting">Подключение к очкам…</string>
+    <string name="glasses_connected">Очки подключены</string>
+    <string name="connect_glasses">Подключить очки</string>
+    <string name="disconnect_glasses">Отключить очки</string>
+
+    <!-- Errors -->
+    <string name="error_no_api_key">API ключ не указан. Перейдите в Настройки.</string>
+    <string name="error_network">Ошибка сети. Проверьте подключение к интернету.</string>
+    <string name="error_unknown">Произошла неизвестная ошибка.</string>
+</resources>
