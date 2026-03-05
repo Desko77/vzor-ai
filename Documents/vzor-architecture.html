@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vzor — Архитектура</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Unbounded:wght@300;400;700;900&display=swap');
+
+  :root {
+    --bg: #080c10;
+    --bg2: #0d1219;
+    --bg3: #121820;
+    --border: #1e2a38;
+    --border2: #2a3a4e;
+    --accent: #00d4ff;
+    --accent2: #7b4fff;
+    --accent3: #00ff9d;
+    --accent4: #ff6b35;
+    --text: #c8d8e8;
+    --text-dim: #4a6278;
+    --text-bright: #eef4fa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .logo {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+    padding: 16px 20px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Main grid layout */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr 220px;
+    grid-template-rows: auto auto auto;
+    gap: 0;
+    position: relative;
+  }
+
+  /* Sections */
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    padding-left: 4px;
+    border-left: 2px solid var(--border2);
+    padding-left: 8px;
+  }
+
+  /* === HARDWARE LAYER === */
+  .layer-hardware {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 16px;
+    padding: 24px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.04), rgba(0,212,255,0.01));
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .layer-hardware::before {
+    content: 'HARDWARE';
+    position: absolute;
+    top: -10px; left: 20px;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    background: var(--bg);
+    padding: 0 8px;
+  }
+
+  /* === PHONE LAYER === */
+  .layer-phone {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 200px 1fr 220px;
+    gap: 16px;
+    padding: 24px;
+    background: linear-gradient(135deg, rgba(123,79,255,0.04), rgba(123,79,255,0.01));
+    border: 1px solid rgba(123,79,255,0.15);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .layer-phone::before {
+    content: 'ANDROID APP — GALAXY FOLD 7';
+    position: absolute;
+    top: -10px; left: 20px;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--accent2);
+    background: var(--bg);
+    padding: 0 8px;
+  }
+
+  /* === BACKENDS LAYER === */
+  .layer-backends {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    padding: 24px;
+    background: linear-gradient(135deg, rgba(0,255,157,0.03), rgba(0,255,157,0.01));
+    border: 1px solid rgba(0,255,157,0.12);
+    border-radius: 12px;
+    position: relative;
+  }
+  .layer-backends::before {
+    content: 'AI BACKENDS';
+    position: absolute;
+    top: -10px; left: 20px;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--accent3);
+    background: var(--bg);
+    padding: 0 8px;
+  }
+
+  /* === CARDS === */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: all 0.2s ease;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover {
+    border-color: var(--border2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: transparent;
+    transition: background 0.2s;
+  }
+  .card.hw::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .card.app::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .card.ai::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+  .card.sys::before { background: linear-gradient(90deg, var(--accent4), transparent); }
+  .card.router::before { background: linear-gradient(90deg, #fff, transparent); }
+
+  .card-icon { font-size: 20px; margin-bottom: 8px; }
+  .card-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+  .card-desc {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .tag {
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    border: 1px solid;
+  }
+  .tag-blue { color: var(--accent); border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.06); }
+  .tag-purple { color: var(--accent2); border-color: rgba(123,79,255,0.3); background: rgba(123,79,255,0.06); }
+  .tag-green { color: var(--accent3); border-color: rgba(0,255,157,0.3); background: rgba(0,255,157,0.06); }
+  .tag-orange { color: var(--accent4); border-color: rgba(255,107,53,0.3); background: rgba(255,107,53,0.06); }
+  .tag-gray { color: var(--text-dim); border-color: var(--border); background: transparent; }
+
+  /* Router card special */
+  .card.router {
+    background: var(--bg3);
+    border-color: rgba(255,255,255,0.12);
+    text-align: center;
+  }
+  .card.router .card-title { color: white; }
+
+  /* Flow arrows between layers */
+  .flow-arrows {
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+    margin: -8px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .arrow-line {
+    width: 1px;
+    height: 16px;
+    background: var(--border2);
+    position: relative;
+  }
+  .arrow-line::after {
+    content: '▼';
+    position: absolute;
+    bottom: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    color: var(--border2);
+  }
+  .arrow-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-top: 14px;
+  }
+
+  /* Connection dots */
+  .connections {
+    margin: 20px 0;
+    padding: 16px 24px;
+    background: var(--bg2);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    display: flex;
+    gap: 0;
+    align-items: center;
+    font-size: 10px;
+  }
+  .conn-node {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .conn-arrow {
+    flex: 1;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 10px;
+    position: relative;
+  }
+  .conn-arrow::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: var(--border2);
+  }
+  .conn-arrow span {
+    position: relative;
+    background: var(--bg2);
+    padding: 0 4px;
+    color: var(--text-dim);
+    font-size: 9px;
+  }
+
+  /* Router logic */
+  .router-logic {
+    grid-column: 1 / -1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .router-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .router-title::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: white;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .router-rules {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .rule {
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1px solid;
+    font-size: 10px;
+  }
+  .rule-condition {
+    font-weight: 500;
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+  .rule-action {
+    font-size: 9px;
+    opacity: 0.7;
+    line-height: 1.5;
+  }
+  .rule-1 { border-color: rgba(0,255,157,0.2); background: rgba(0,255,157,0.04); color: var(--accent3); }
+  .rule-2 { border-color: rgba(0,212,255,0.2); background: rgba(0,212,255,0.04); color: var(--accent); }
+  .rule-3 { border-color: rgba(123,79,255,0.2); background: rgba(123,79,255,0.04); color: var(--accent2); }
+
+  /* Pipeline flow */
+  .pipeline {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 16px 24px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow-x: auto;
+    margin-top: 8px;
+  }
+  .pipe-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 90px;
+    text-align: center;
+  }
+  .pipe-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+  }
+  .pipe-name {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+  .pipe-tech {
+    font-size: 8px;
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+  .pipe-arrow {
+    flex: 1;
+    min-width: 20px;
+    height: 1px;
+    background: var(--border2);
+    position: relative;
+    margin: 0 4px;
+    margin-bottom: 20px;
+  }
+  .pipe-arrow::after {
+    content: '▶';
+    position: absolute;
+    right: -6px;
+    top: -5px;
+    font-size: 8px;
+    color: var(--border2);
+  }
+  .pipe-label {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    opacity: 0.7;
+  }
+
+  /* Scenarios grid */
+  .scenarios {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .scenario {
+    padding: 10px 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+  }
+  .scenario:hover {
+    border-color: var(--border2);
+    color: var(--text);
+  }
+  .scenario-icon { font-size: 14px; flex-shrink: 0; }
+  .scenario-backend {
+    margin-left: auto;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .footnote {
+    margin-top: 24px;
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    padding: 16px 20px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+  }
+  .footnote strong { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">VZOR</div>
+    <div class="subtitle">AI-ассистент для Ray-Ban Meta Gen 2 · Архитектура v0.1</div>
+  </div>
+
+  <!-- HARDWARE LAYER -->
+  <div class="layer-hardware">
+    <div class="card hw" style="flex:1">
+      <div class="card-icon">🕶️</div>
+      <div class="card-title">RAY-BAN META GEN 2</div>
+      <div class="card-desc">Snapdragon AR1 Gen1 · 12MP ultrawide · 5-mic array · Open-ear speakers · BT 5.3</div>
+      <div class="card-tags">
+        <span class="tag tag-blue">Camera stream</span>
+        <span class="tag tag-blue">Microphone</span>
+        <span class="tag tag-blue">Speaker</span>
+        <span class="tag tag-gray">BT HFP/A2DP</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;padding:0 8px">
+      <div style="font-size:10px;color:var(--text-dim);white-space:nowrap">← Meta Wearables SDK</div>
+      <div style="font-size:10px;color:var(--text-dim);white-space:nowrap">← Bluetooth HFP/A2DP</div>
+    </div>
+    <div class="card hw" style="flex:1.2">
+      <div class="card-icon">📱</div>
+      <div class="card-title">GALAXY Z FOLD 7</div>
+      <div class="card-desc">Snapdragon 8 Elite · 12/16GB RAM · Android 16 · Хост для всей логики</div>
+      <div class="card-tags">
+        <span class="tag tag-purple">Kotlin/Jetpack</span>
+        <span class="tag tag-purple">Meta Wearables DAT</span>
+        <span class="tag tag-gray">BT Central</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN PIPELINE -->
+  <div style="margin-bottom:20px;">
+    <div class="section-label" style="margin-bottom:12px">Основной pipeline запроса</div>
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="pipe-icon">🎙️</div>
+        <div class="pipe-name">ГОЛОС</div>
+        <div class="pipe-tech">BT Mic</div>
+      </div>
+      <div class="pipe-arrow"><span class="pipe-label">BT HFP</span></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">📝</div>
+        <div class="pipe-name">STT</div>
+        <div class="pipe-tech">Whisper / Google</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🔀</div>
+        <div class="pipe-name">РОУТЕР</div>
+        <div class="pipe-tech">Intent classifier</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🤖</div>
+        <div class="pipe-name">LLM</div>
+        <div class="pipe-tech">Qwen / Claude</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🔊</div>
+        <div class="pipe-name">TTS</div>
+        <div class="pipe-tech">Yandex / Google</div>
+      </div>
+      <div class="pipe-arrow"><span class="pipe-label">BT A2DP</span></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">👂</div>
+        <div class="pipe-name">ОТВЕТ</div>
+        <div class="pipe-tech">Speaker</div>
+      </div>
+    </div>
+
+    <!-- Vision pipeline -->
+    <div class="pipeline" style="margin-top:8px">
+      <div class="pipe-step">
+        <div class="pipe-icon">📸</div>
+        <div class="pipe-name">ФОТО</div>
+        <div class="pipe-tech">12MP camera</div>
+      </div>
+      <div class="pipe-arrow"><span class="pipe-label">Meta SDK</span></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🖼️</div>
+        <div class="pipe-name">КАДР</div>
+        <div class="pipe-tech">720p / 30fps</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🔀</div>
+        <div class="pipe-name">РОУТЕР</div>
+        <div class="pipe-tech">Intent + vision</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">👁️</div>
+        <div class="pipe-name">VISION LLM</div>
+        <div class="pipe-tech">Qwen3.5-4B/9B</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">💬</div>
+        <div class="pipe-name">ОТВЕТ</div>
+        <div class="pipe-tech">Text + TTS</div>
+      </div>
+      <div class="pipe-arrow"><span class="pipe-label">BT A2DP</span></div>
+      <div class="pipe-step">
+        <div class="pipe-icon">👂</div>
+        <div class="pipe-name">ОЗВУЧКА</div>
+        <div class="pipe-tech">Speaker</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHONE APP INTERNALS -->
+  <div class="layer-phone">
+    <!-- Left: Input handlers -->
+    <div>
+      <div class="section-label">Входные каналы</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="card app">
+          <div class="card-title">🎙️ VOICE INPUT</div>
+          <div class="card-desc">BT HFP профиль · Wake word "Взор" · VAD (голос/тишина)</div>
+        </div>
+        <div class="card app">
+          <div class="card-title">📸 CAMERA INPUT</div>
+          <div class="card-desc">Meta Wearables DAT · Photo capture · Video stream 720p</div>
+        </div>
+        <div class="card app">
+          <div class="card-title">⚡ SYSTEM EVENTS</div>
+          <div class="card-desc">Входящие звонки · Уведомления · Android Intents</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Core logic -->
+    <div>
+      <div class="section-label">Ядро приложения</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="router-logic" style="margin:0">
+          <div class="router-title">INTENT ROUTER — умный роутинг</div>
+          <div class="router-rules">
+            <div class="rule rule-1">
+              <div class="rule-condition">🏠 Дома (Wi-Fi)</div>
+              <div class="rule-action">→ AI Max (Qwen3.5-9B)<br>Лучшее качество + скорость</div>
+            </div>
+            <div class="rule rule-2">
+              <div class="rule-condition">🌐 На улице (LTE)</div>
+              <div class="rule-action">→ Claude API / GPT-4o<br>Облако, полное качество</div>
+            </div>
+            <div class="rule rule-3">
+              <div class="rule-condition">✈️ Офлайн</div>
+              <div class="rule-action">→ Qwen3.5-4B на Fold 7<br>Базовые функции</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="card app">
+            <div class="card-title">🧠 CONTEXT MANAGER</div>
+            <div class="card-desc">История диалога · Память о пользователе · Session state</div>
+          </div>
+          <div class="card app">
+            <div class="card-title">📞 ACTION HANDLER</div>
+            <div class="card-desc">TelecomManager · WhatsApp API · Напоминания · Музыка</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Output handlers -->
+    <div>
+      <div class="section-label">Выходные каналы</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="card app">
+          <div class="card-title">🔊 TTS OUTPUT</div>
+          <div class="card-desc">Yandex SpeechKit RU · Google TTS · → BT A2DP speaker</div>
+        </div>
+        <div class="card app">
+          <div class="card-title">📲 PHONE ACTIONS</div>
+          <div class="card-desc">Звонки · SMS/WhatsApp · Плеер · Таймеры · Навигация</div>
+        </div>
+        <div class="card app">
+          <div class="card-title">🔄 LIVE AI MODE</div>
+          <div class="card-desc">Непрерывный стрим с камеры · Realtime комментарии</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BACKENDS LAYER -->
+  <div class="layer-backends">
+    <div class="card ai">
+      <div class="card-icon">🏠</div>
+      <div class="card-title">AI MAX (ЛОКАЛЬНЫЙ)</div>
+      <div class="card-desc">Ryzen AI Max 395 · 128GB · Ollama API · Домашняя сеть</div>
+      <div class="card-tags">
+        <span class="tag tag-green">Qwen3.5-9B vision</span>
+        <span class="tag tag-green">~150-300ms</span>
+        <span class="tag tag-green">Бесплатно</span>
+      </div>
+    </div>
+    <div class="card ai">
+      <div class="card-icon">☁️</div>
+      <div class="card-title">ОБЛАКО (API)</div>
+      <div class="card-desc">Claude API · GPT-4o · Полные возможности · Поиск в сети</div>
+      <div class="card-tags">
+        <span class="tag tag-blue">Лучшее качество</span>
+        <span class="tag tag-blue">~400-700ms</span>
+        <span class="tag tag-orange">~$0.01/запрос</span>
+      </div>
+    </div>
+    <div class="card ai">
+      <div class="card-icon">📱</div>
+      <div class="card-title">ON-DEVICE (FOLD 7)</div>
+      <div class="card-desc">Qwen3.5-4B · MLC LLM · Нативный multimodal · Офлайн</div>
+      <div class="card-tags">
+        <span class="tag tag-purple">Vision + text</span>
+        <span class="tag tag-purple">~1-2s</span>
+        <span class="tag tag-green">Офлайн</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALL SCENARIOS -->
+  <div style="margin-top:24px">
+    <div class="section-label" style="margin-bottom:12px">Все сценарии использования</div>
+    <div class="scenarios">
+      <div class="scenario"><span class="scenario-icon">👁️</span>Распознавание объектов<span class="scenario-backend tag tag-green" style="margin-left:auto">Vision</span></div>
+      <div class="scenario"><span class="scenario-icon">🔤</span>Перевод текста с фото<span class="scenario-backend tag tag-green" style="margin-left:auto">Vision</span></div>
+      <div class="scenario"><span class="scenario-icon">🗺️</span>Идентификация мест<span class="scenario-backend tag tag-blue" style="margin-left:auto">Cloud</span></div>
+      <div class="scenario"><span class="scenario-icon">🍽️</span>Анализ еды / калории<span class="scenario-backend tag tag-green" style="margin-left:auto">Vision</span></div>
+      <div class="scenario"><span class="scenario-icon">🛍️</span>Шопинг-помощник<span class="scenario-backend tag tag-blue" style="margin-left:auto">Cloud</span></div>
+      <div class="scenario"><span class="scenario-icon">🎥</span>Live AI (непрерывный)<span class="scenario-backend tag tag-green" style="margin-left:auto">AI Max</span></div>
+      <div class="scenario"><span class="scenario-icon">🌍</span>Живой перевод речи<span class="scenario-backend tag tag-purple" style="margin-left:auto">STT+LLM</span></div>
+      <div class="scenario"><span class="scenario-icon">🎵</span>Управление музыкой<span class="scenario-backend tag tag-gray" style="margin-left:auto">Android</span></div>
+      <div class="scenario"><span class="scenario-icon">📞</span>Звонки по команде<span class="scenario-backend tag tag-gray" style="margin-left:auto">Telecom</span></div>
+      <div class="scenario"><span class="scenario-icon">💬</span>Сообщения голосом<span class="scenario-backend tag tag-gray" style="margin-left:auto">Android</span></div>
+      <div class="scenario"><span class="scenario-icon">📸</span>Фото/видео hands-free<span class="scenario-backend tag tag-blue" style="margin-left:auto">SDK</span></div>
+      <div class="scenario"><span class="scenario-icon">🔔</span>Напоминания<span class="scenario-backend tag tag-gray" style="margin-left:auto">Android</span></div>
+      <div class="scenario"><span class="scenario-icon">🅰️</span>Conversation Focus<span class="scenario-backend tag tag-orange" style="margin-left:auto">DSP</span></div>
+      <div class="scenario"><span class="scenario-icon">❓</span>Вопросы-ответы<span class="scenario-backend tag tag-blue" style="margin-left:auto">LLM</span></div>
+      <div class="scenario"><span class="scenario-icon">🅿️</span>Память (где припарковал)<span class="scenario-backend tag tag-purple" style="margin-left:auto">Local DB</span></div>
+      <div class="scenario"><span class="scenario-icon">♿</span>Доступность (Be My Eyes)<span class="scenario-backend tag tag-blue" style="margin-left:auto">Vision</span></div>
+    </div>
+  </div>
+
+  <div class="footnote" style="margin-top:20px">
+    <strong>⚠️ Ограничения Meta Wearables SDK (developer preview):</strong><br>
+    Видео стрим максимум 720p/30fps через Bluetooth · Голосовые команды "Hey Meta" недоступны сторонним приложениям · Публикация в App Store только для select partners (2026) · SDK работает только как companion app на телефоне, не на самих очках · Управление дисплеем Ray-Ban Display через SDK пока недоступно
+  </div>
+
+</div>
+</body>
+</html>
