@@ -133,11 +133,13 @@ class OnDeviceVisionProcessor @Inject constructor() {
             val regex = Regex("(?<=\\s|^)${Regex.escape(keyword)}(?=\\s|$|[.,!?;:])")
             return regex.containsMatchIn(text)
         }
-        // Single-word: word equals keyword or starts with it (allowing up to 3 extra chars for Russian endings)
+        // Single-word: word equals keyword or starts with it (allowing morphological suffixes)
+        // Shorter keywords (<=5 chars) get stricter tolerance to avoid false positives
+        val maxExtra = if (keyword.length >= 6) 2 else 1
         return words.any { w ->
             // Strip trailing punctuation for comparison
             val clean = w.trimEnd('.', ',', '!', '?', ';', ':', '"', '\'', ')', '(')
-            clean == keyword || (clean.startsWith(keyword) && clean.length <= keyword.length + 3)
+            clean == keyword || (clean.startsWith(keyword) && clean.length <= keyword.length + maxExtra)
         }
     }
 

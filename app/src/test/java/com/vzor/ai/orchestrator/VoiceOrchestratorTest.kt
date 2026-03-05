@@ -129,7 +129,7 @@ class VoiceOrchestratorTest {
         orchestrator.state.test {
             skipItems(1) // IDLE
             driveToState(VoiceState.CONFIRMING)
-            skipItems(3) // LISTENING, PROCESSING, GENERATING→CONFIRMING
+            skipItems(4) // LISTENING, PROCESSING, GENERATING, CONFIRMING
 
             orchestrator.onEvent(VoiceEvent.BargeIn)
             assertEquals(VoiceState.IDLE, awaitItem())
@@ -330,7 +330,7 @@ class VoiceOrchestratorTest {
         orchestrator.state.test {
             skipItems(1)
             driveToState(VoiceState.CONFIRMING)
-            skipItems(3)
+            skipItems(4)
 
             orchestrator.onEvent(VoiceEvent.UserConfirmed)
             assertEquals(VoiceState.IDLE, awaitItem())
@@ -344,7 +344,7 @@ class VoiceOrchestratorTest {
         orchestrator.state.test {
             skipItems(1)
             driveToState(VoiceState.CONFIRMING)
-            skipItems(3)
+            skipItems(4)
 
             orchestrator.onEvent(VoiceEvent.UserCancelled)
             assertEquals(VoiceState.IDLE, awaitItem())
@@ -358,7 +358,7 @@ class VoiceOrchestratorTest {
         orchestrator.state.test {
             skipItems(1)
             driveToState(VoiceState.CONFIRMING)
-            skipItems(3)
+            skipItems(4)
 
             orchestrator.onEvent(VoiceEvent.ConfirmTimeout())
             assertEquals(VoiceState.IDLE, awaitItem())
@@ -517,7 +517,7 @@ class VoiceOrchestratorTest {
         orchestrator.state.test {
             skipItems(1) // IDLE
             driveToState(VoiceState.CONFIRMING)
-            skipItems(3) // LISTENING, PROCESSING, GENERATING→CONFIRMING
+            skipItems(4) // LISTENING, PROCESSING, GENERATING, CONFIRMING
 
             orchestrator.onEvent(VoiceEvent.HardReset)
             assertEquals(VoiceState.IDLE, awaitItem())
