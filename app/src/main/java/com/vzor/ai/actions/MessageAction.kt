@@ -1,10 +1,12 @@
 package com.vzor.ai.actions
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 
+@SuppressLint("QueryPermissionsNeeded")
 class MessageAction(private val context: Context) {
 
     companion object {

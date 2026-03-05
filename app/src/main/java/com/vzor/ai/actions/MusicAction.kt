@@ -1,5 +1,6 @@
 package com.vzor.ai.actions
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -7,6 +8,7 @@ import android.os.SystemClock
 import android.provider.MediaStore
 import android.view.KeyEvent
 
+@SuppressLint("QueryPermissionsNeeded")
 class MusicAction(private val context: Context) {
 
     private val audioManager: AudioManager by lazy {

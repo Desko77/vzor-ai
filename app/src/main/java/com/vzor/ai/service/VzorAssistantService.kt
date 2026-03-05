@@ -254,7 +254,7 @@ class VzorAssistantService : Service() {
             .build()
     }
 
-    @SuppressLint("MissingPermission")
+    @SuppressLint("NotificationPermission")
     private fun updateNotification(glassesState: GlassesState) {
         val notification = buildNotification(glassesState)
         val manager = getSystemService(NotificationManager::class.java)

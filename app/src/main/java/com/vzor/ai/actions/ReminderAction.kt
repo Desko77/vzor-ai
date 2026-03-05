@@ -1,5 +1,6 @@
 package com.vzor.ai.actions
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,6 +11,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.AlarmClock
 
+@SuppressLint("QueryPermissionsNeeded")
 class ReminderAction(private val context: Context) {
 
     companion object {
