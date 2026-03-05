@@ -25,6 +25,9 @@ dependencyResolutionManagement {
                 password = providers.gradleProperty("gpr.token").orNull
                     ?: System.getenv("GITHUB_TOKEN") ?: ""
             }
+            content {
+                includeGroupByRegex("com\\.meta\\..*")
+            }
         }
     }
 }
