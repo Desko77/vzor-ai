@@ -1,5 +1,6 @@
 package com.vzor.ai.actions
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
@@ -8,6 +9,7 @@ import android.provider.ContactsContract
 
 class CallAction(private val context: Context) {
 
+    @SuppressLint("MissingPermission")
     fun call(contactName: String): ActionResult {
         val phoneNumber = lookupContact(contactName)
 

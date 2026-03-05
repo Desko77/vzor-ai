@@ -1,5 +1,6 @@
 package com.vzor.ai.service
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -253,6 +254,7 @@ class VzorAssistantService : Service() {
             .build()
     }
 
+    @SuppressLint("MissingPermission")
     private fun updateNotification(glassesState: GlassesState) {
         val notification = buildNotification(glassesState)
         val manager = getSystemService(NotificationManager::class.java)

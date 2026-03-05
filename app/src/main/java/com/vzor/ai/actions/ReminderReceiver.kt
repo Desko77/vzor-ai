@@ -1,5 +1,6 @@
 package com.vzor.ai.actions
 
+import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,6 +10,7 @@ import com.vzor.ai.R
 
 class ReminderReceiver : BroadcastReceiver() {
 
+    @SuppressLint("MissingPermission")
     override fun onReceive(context: Context, intent: Intent) {
         val reminderText = intent.getStringExtra("reminder_text") ?: "Напоминание"
         val notificationId = intent.getIntExtra("notification_id", 0)
