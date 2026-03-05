@@ -3,6 +3,7 @@ package com.vzor.ai.speech
 import android.content.Context
 import android.util.Log
 import com.vzor.ai.data.local.PreferencesManager
+import com.vzor.ai.glasses.AudioStreamHandler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
