@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -134,6 +135,7 @@ class HomeViewModel @Inject constructor(
 @Composable
 fun HomeScreen(
     onNavigateToSettings: () -> Unit,
+    onNavigateToTranslation: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -141,6 +143,7 @@ fun HomeScreen(
     HomeScreenContent(
         uiState = uiState,
         onNavigateToSettings = onNavigateToSettings,
+        onNavigateToTranslation = onNavigateToTranslation,
         onStartListening = viewModel::onStartListening,
         onTakePhoto = viewModel::onTakePhoto,
         onConnectGlasses = viewModel::onConnectGlasses,
@@ -153,6 +156,7 @@ fun HomeScreen(
 private fun HomeScreenContent(
     uiState: HomeUiState,
     onNavigateToSettings: () -> Unit,
+    onNavigateToTranslation: () -> Unit = {},
     onStartListening: () -> Unit,
     onTakePhoto: () -> Unit,
     onConnectGlasses: () -> Unit,
@@ -206,7 +210,8 @@ private fun HomeScreenContent(
                         uiState.glassesState == GlassesState.STREAMING_AUDIO,
                 onStartListening = onStartListening,
                 onTakePhoto = onTakePhoto,
-                onSettings = onNavigateToSettings
+                onSettings = onNavigateToSettings,
+                onTranslate = onNavigateToTranslation
             )
         }
     }
@@ -356,7 +361,8 @@ private fun QuickActionsCard(
     isGlassesConnected: Boolean,
     onStartListening: () -> Unit,
     onTakePhoto: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onTranslate: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -391,6 +397,14 @@ private fun QuickActionsCard(
                     label = "Take Photo",
                     onClick = onTakePhoto,
                     enabled = isGlassesConnected,
+                    modifier = Modifier.weight(1f)
+                )
+
+                QuickActionButton(
+                    icon = Icons.Default.Translate,
+                    label = "Translate",
+                    onClick = onTranslate,
+                    enabled = true,
                     modifier = Modifier.weight(1f)
                 )
 

@@ -102,7 +102,8 @@ fun VzorNavGraph() {
         ) {
             composable(Routes.HOME) {
                 HomeScreen(
-                    onNavigateToSettings = { navController.navigate(Routes.SETTINGS) }
+                    onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
+                    onNavigateToTranslation = { navController.navigate(Routes.TRANSLATION) }
                 )
             }
 
