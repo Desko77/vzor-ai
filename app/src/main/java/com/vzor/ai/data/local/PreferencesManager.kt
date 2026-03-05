@@ -1,11 +1,14 @@
 package com.vzor.ai.data.local
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.vzor.ai.domain.model.AiProvider
 import com.vzor.ai.domain.model.SttProvider
 import com.vzor.ai.domain.model.TtsProvider
@@ -17,40 +20,52 @@ import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "vzor_settings")
 
+// TODO: Migrate to SQLCipher when:
+// - MemoryFact starts storing PII (medical, financial data)
+// - Regulatory requirements (HIPAA, PCI-DSS) apply
+// - User data export/portability is implemented
+
 @Singleton
 class PreferencesManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val dataStore = context.dataStore
 
+    /**
+     * Зашифрованное хранилище для API-ключей.
+     * Использует Android Keystore для шифрования — ключи не читаются без root.
+     */
+    private val encryptedPrefs: SharedPreferences by lazy {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        EncryptedSharedPreferences.create(
+            "vzor_secure_prefs",
+            masterKeyAlias,
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
     companion object {
         private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
-        private val KEY_GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
-        private val KEY_CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
-        private val KEY_OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         private val KEY_STT_PROVIDER = stringPreferencesKey("stt_provider")
         private val KEY_TTS_PROVIDER = stringPreferencesKey("tts_provider")
-        private val KEY_YANDEX_API_KEY = stringPreferencesKey("yandex_api_key")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system_prompt")
         private val KEY_LOCAL_AI_HOST = stringPreferencesKey("local_ai_host")
-        private val KEY_GLM_API_KEY = stringPreferencesKey("glm_api_key")
-        private val KEY_TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
+
+        // Ключи для EncryptedSharedPreferences (API keys)
+        private const val ENCRYPTED_GEMINI_KEY = "gemini_api_key"
+        private const val ENCRYPTED_CLAUDE_KEY = "claude_api_key"
+        private const val ENCRYPTED_OPENAI_KEY = "openai_api_key"
+        private const val ENCRYPTED_YANDEX_KEY = "yandex_api_key"
+        private const val ENCRYPTED_GLM_KEY = "glm_api_key"
+        private const val ENCRYPTED_TAVILY_KEY = "tavily_api_key"
     }
+
+    // --- Настройки (DataStore, не чувствительные) ---
 
     val aiProvider: Flow<AiProvider> = dataStore.data.map { prefs ->
         prefs[KEY_AI_PROVIDER]?.let { AiProvider.valueOf(it) } ?: AiProvider.DEFAULT
-    }
-
-    val geminiApiKey: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_GEMINI_API_KEY] ?: ""
-    }
-
-    val claudeApiKey: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_CLAUDE_API_KEY] ?: ""
-    }
-
-    val openAiApiKey: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_OPENAI_API_KEY] ?: ""
     }
 
     val sttProvider: Flow<SttProvider> = dataStore.data.map { prefs ->
@@ -61,10 +76,6 @@ class PreferencesManager @Inject constructor(
         prefs[KEY_TTS_PROVIDER]?.let { TtsProvider.valueOf(it) } ?: TtsProvider.GOOGLE
     }
 
-    val yandexApiKey: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_YANDEX_API_KEY] ?: ""
-    }
-
     val systemPrompt: Flow<String> = dataStore.data.map { prefs ->
         prefs[KEY_SYSTEM_PROMPT] ?: "Ты — полезный AI-ассистент. Отвечай на русском языке."
     }
@@ -73,28 +84,8 @@ class PreferencesManager @Inject constructor(
         prefs[KEY_LOCAL_AI_HOST] ?: ""
     }
 
-    val glmApiKey: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_GLM_API_KEY] ?: ""
-    }
-
-    val tavilyApiKey: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_TAVILY_API_KEY] ?: ""
-    }
-
     suspend fun setAiProvider(provider: AiProvider) {
         dataStore.edit { it[KEY_AI_PROVIDER] = provider.name }
-    }
-
-    suspend fun setGeminiApiKey(key: String) {
-        dataStore.edit { it[KEY_GEMINI_API_KEY] = key }
-    }
-
-    suspend fun setClaudeApiKey(key: String) {
-        dataStore.edit { it[KEY_CLAUDE_API_KEY] = key }
-    }
-
-    suspend fun setOpenAiApiKey(key: String) {
-        dataStore.edit { it[KEY_OPENAI_API_KEY] = key }
     }
 
     suspend fun setSttProvider(provider: SttProvider) {
@@ -105,10 +96,6 @@ class PreferencesManager @Inject constructor(
         dataStore.edit { it[KEY_TTS_PROVIDER] = provider.name }
     }
 
-    suspend fun setYandexApiKey(key: String) {
-        dataStore.edit { it[KEY_YANDEX_API_KEY] = key }
-    }
-
     suspend fun setSystemPrompt(prompt: String) {
         dataStore.edit { it[KEY_SYSTEM_PROMPT] = prompt }
     }
@@ -117,11 +104,53 @@ class PreferencesManager @Inject constructor(
         dataStore.edit { it[KEY_LOCAL_AI_HOST] = host }
     }
 
+    // --- API keys (EncryptedSharedPreferences, чувствительные) ---
+
+    val geminiApiKey: Flow<String> = dataStore.data.map {
+        encryptedPrefs.getString(ENCRYPTED_GEMINI_KEY, "") ?: ""
+    }
+
+    val claudeApiKey: Flow<String> = dataStore.data.map {
+        encryptedPrefs.getString(ENCRYPTED_CLAUDE_KEY, "") ?: ""
+    }
+
+    val openAiApiKey: Flow<String> = dataStore.data.map {
+        encryptedPrefs.getString(ENCRYPTED_OPENAI_KEY, "") ?: ""
+    }
+
+    val yandexApiKey: Flow<String> = dataStore.data.map {
+        encryptedPrefs.getString(ENCRYPTED_YANDEX_KEY, "") ?: ""
+    }
+
+    val glmApiKey: Flow<String> = dataStore.data.map {
+        encryptedPrefs.getString(ENCRYPTED_GLM_KEY, "") ?: ""
+    }
+
+    val tavilyApiKey: Flow<String> = dataStore.data.map {
+        encryptedPrefs.getString(ENCRYPTED_TAVILY_KEY, "") ?: ""
+    }
+
+    suspend fun setGeminiApiKey(key: String) {
+        encryptedPrefs.edit().putString(ENCRYPTED_GEMINI_KEY, key).apply()
+    }
+
+    suspend fun setClaudeApiKey(key: String) {
+        encryptedPrefs.edit().putString(ENCRYPTED_CLAUDE_KEY, key).apply()
+    }
+
+    suspend fun setOpenAiApiKey(key: String) {
+        encryptedPrefs.edit().putString(ENCRYPTED_OPENAI_KEY, key).apply()
+    }
+
+    suspend fun setYandexApiKey(key: String) {
+        encryptedPrefs.edit().putString(ENCRYPTED_YANDEX_KEY, key).apply()
+    }
+
     suspend fun setGlmApiKey(key: String) {
-        dataStore.edit { it[KEY_GLM_API_KEY] = key }
+        encryptedPrefs.edit().putString(ENCRYPTED_GLM_KEY, key).apply()
     }
 
     suspend fun setTavilyApiKey(key: String) {
-        dataStore.edit { it[KEY_TAVILY_API_KEY] = key }
+        encryptedPrefs.edit().putString(ENCRYPTED_TAVILY_KEY, key).apply()
     }
 }
