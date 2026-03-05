@@ -37,10 +37,11 @@ class SceneComposer @Inject constructor() {
     fun compose(
         objects: List<DetectedObject>,
         ocrText: String?,
-        description: String?
+        description: String?,
+        faceCount: Int = 0
     ): SceneData {
         val timestamp = System.currentTimeMillis()
-        val stability = computeStability(objects)
+        val stability = computeStability(objects, faceCount)
         val ttl = computeTtl(objects, ocrText)
         val textList = parseOcrText(ocrText)
         val summary = buildSummary(objects, textList, description)
@@ -51,6 +52,7 @@ class SceneComposer @Inject constructor() {
             sceneSummary = summary,
             objects = objects,
             text = textList,
+            faceCount = faceCount,
             stability = stability,
             ttlMs = ttl
         )
@@ -61,15 +63,25 @@ class SceneComposer @Inject constructor() {
      * consistency. Higher average confidence and more detections yield a
      * higher stability score.
      */
-    private fun computeStability(objects: List<DetectedObject>): Float {
-        if (objects.isEmpty()) return 0.0f
+    private fun computeStability(objects: List<DetectedObject>, faceCount: Int = 0): Float {
+        if (objects.isEmpty() && faceCount == 0) return 0.0f
 
-        val avgConfidence = objects.map { it.confidence }.average().toFloat()
-        val reliableCount = objects.count { it.confidence >= LOW_CONFIDENCE_THRESHOLD }
-        val reliableRatio = reliableCount.toFloat() / objects.size.toFloat()
+        var raw = 0.0f
 
-        // Weighted combination: 60% average confidence, 40% ratio of reliable detections
-        val raw = (avgConfidence * 0.6f) + (reliableRatio * 0.4f)
+        if (objects.isNotEmpty()) {
+            val avgConfidence = objects.map { it.confidence }.average().toFloat()
+            val reliableCount = objects.count { it.confidence >= LOW_CONFIDENCE_THRESHOLD }
+            val reliableRatio = reliableCount.toFloat() / objects.size.toFloat()
+            // Weighted combination: 60% average confidence, 40% ratio of reliable detections
+            raw = (avgConfidence * 0.6f) + (reliableRatio * 0.4f)
+        }
+
+        // Faces boost stability (people in frame = stable scene context)
+        if (faceCount > 0) {
+            val faceBoost = (faceCount.coerceAtMost(3) * 0.1f)
+            raw = (raw + faceBoost).coerceAtMost(1.0f)
+        }
+
         return raw.coerceIn(0.0f, 1.0f)
     }
 

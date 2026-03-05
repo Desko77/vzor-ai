@@ -11,7 +11,8 @@ import javax.inject.Singleton
 class VisionRouter @Inject constructor(
     private val perceptionCache: PerceptionCache,
     private val visionRepository: VisionRepository,
-    private val onDeviceProcessor: OnDeviceVisionProcessor
+    private val onDeviceProcessor: OnDeviceVisionProcessor,
+    private val mediaPipeProcessor: MediaPipeVisionProcessor
 ) {
 
     companion object {
@@ -61,7 +62,11 @@ class VisionRouter @Inject constructor(
         prompt: String,
         forceRefresh: Boolean = false
     ): Result<SceneData> {
-        // Try on-device OCR for text-focused queries
+        // 1. MediaPipe: быстрое on-device обнаружение лиц и объектов
+        val faces = mediaPipeProcessor.detectFaces(imageBytes)
+        val mpObjects = mediaPipeProcessor.detectObjects(imageBytes)
+
+        // 2. ML Kit OCR для текстовых запросов
         if (onDeviceProcessor.isTextQuery(prompt)) {
             val ocrResult = onDeviceProcessor.recognizeText(imageBytes)
             if (ocrResult != null && ocrResult.fullText.isNotBlank() &&
@@ -71,8 +76,9 @@ class VisionRouter @Inject constructor(
                     sceneId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
                     sceneSummary = ocrResult.fullText,
-                    objects = emptyList(),
+                    objects = mpObjects.map { DetectedObject(it.label, it.confidence) },
                     text = ocrResult.blocks.map { it.text },
+                    faceCount = faces.size,
                     stability = 0.9f,
                     ttlMs = PerceptionCache.DefaultTtl.TEXT_MS
                 )
@@ -81,8 +87,13 @@ class VisionRouter @Inject constructor(
             }
         }
 
-        // Fall through to cloud VLM
-        return analyzeScene(imageBytes, prompt, forceRefresh)
+        // 3. Cloud VLM (обогащённый MediaPipe результатами)
+        return analyzeScene(imageBytes, prompt, forceRefresh).map { sceneData ->
+            sceneData.copy(
+                faceCount = faces.size,
+                objects = sceneData.objects + mpObjects.map { DetectedObject(it.label, it.confidence) }
+            )
+        }
     }
 
     /**

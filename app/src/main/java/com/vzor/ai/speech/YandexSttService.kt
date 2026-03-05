@@ -42,8 +42,8 @@ class YandexSttService @Inject constructor(
         private const val YANDEX_STT_URL =
             "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
 
-        /** Chunk duration for streaming simulation: ~500ms of 16kHz 16-bit mono = 16000 bytes */
-        private const val CHUNK_SIZE_BYTES = 16000
+        /** Chunk duration for streaming simulation: ~1s of 16kHz 16-bit mono = 32000 bytes */
+        private const val CHUNK_SIZE_BYTES = 32000
 
         /** Max recording duration in milliseconds */
         private const val MAX_RECORDING_DURATION_MS = 30_000L
@@ -72,6 +72,8 @@ class YandexSttService @Inject constructor(
         try {
             // Collect audio chunks and send for recognition in batches
             val audioBuffer = ByteArrayOutputStream()
+            var lastEmittedText = ""
+            var lastSentSize = 0
             var startTime = System.currentTimeMillis()
 
             audioStreamHandler.streamAudio().collect { chunk ->
@@ -81,15 +83,16 @@ class YandexSttService @Inject constructor(
 
                 audioBuffer.write(chunk)
 
-                // When we have enough audio data, send a recognition request
-                // This simulates streaming by sending growing audio segments
-                if (audioBuffer.size() >= CHUNK_SIZE_BYTES) {
+                // When enough new audio has accumulated, send for recognition
+                if (audioBuffer.size() >= lastSentSize + CHUNK_SIZE_BYTES) {
                     val currentAudio = audioBuffer.toByteArray()
+                    lastSentSize = currentAudio.size
 
                     try {
                         val result = recognizeAudio(apiKey, currentAudio)
-                        if (result.isNotBlank()) {
-                            // Emit partial result while still recording
+                        // Only emit if result actually changed (deduplication)
+                        if (result.isNotBlank() && result != lastEmittedText) {
+                            lastEmittedText = result
                             emit(
                                 SttResult(
                                     text = result,

@@ -113,11 +113,32 @@ class OnDeviceVisionProcessor @Inject constructor() {
 
     /**
      * Determines if the given prompt/query is text-focused (OCR scenario).
+     * Uses word-boundary matching to avoid false positives on substrings
+     * like "текстура" (contains "текст") or "thread" (contains "read").
      */
     fun isTextQuery(prompt: String): Boolean {
         val lower = prompt.lowercase()
-        return TEXT_QUERY_KEYWORDS_RU.any { lower.contains(it) } ||
-               TEXT_QUERY_KEYWORDS_EN.any { lower.contains(it) }
+        val words = lower.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        return TEXT_QUERY_KEYWORDS_RU.any { kw -> matchesWordBoundary(lower, words, kw) } ||
+               TEXT_QUERY_KEYWORDS_EN.any { kw -> matchesWordBoundary(lower, words, kw) }
+    }
+
+    /**
+     * Word-boundary matching that handles Russian morphology (suffixes up to 3 chars).
+     * Multi-word keywords use regex boundaries; single-word keywords use startsWith with length limit.
+     */
+    private fun matchesWordBoundary(text: String, words: List<String>, keyword: String): Boolean {
+        if (keyword.contains(' ')) {
+            // Multi-word keyword: match with word boundaries
+            val regex = Regex("(?<=\\s|^)${Regex.escape(keyword)}(?=\\s|$|[.,!?;:])")
+            return regex.containsMatchIn(text)
+        }
+        // Single-word: word equals keyword or starts with it (allowing up to 3 extra chars for Russian endings)
+        return words.any { w ->
+            // Strip trailing punctuation for comparison
+            val clean = w.trimEnd('.', ',', '!', '?', ';', ':', '"', '\'', ')', '(')
+            clean == keyword || (clean.startsWith(keyword) && clean.length <= keyword.length + 3)
+        }
     }
 
     /**

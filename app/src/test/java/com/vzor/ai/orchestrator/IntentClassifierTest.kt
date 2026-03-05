@@ -236,4 +236,45 @@ class IntentClassifierTest {
         assertEquals(1, classifier.levenshtein("повтори", "повтари"))
         assertEquals(3, classifier.levenshtein("кот", "собака"))
     }
+
+    // --- Edge cases: slot extraction ---
+
+    @Test
+    fun `slot extraction takes max 3 words for contact`() {
+        val result = classifier.classify("Позвони Иван Петрович Сидоров срочно")
+        assertEquals(IntentType.CALL_CONTACT, result.type)
+        val contact = result.slots["contact"]
+        assertNotNull(contact)
+        // Should take at most 3 words after keyword
+        assertTrue("Contact should be max 3 words", contact!!.split(" ").size <= 3)
+    }
+
+    @Test
+    fun `позвонить contains позвони as substring — still matches`() {
+        val result = classifier.classify("Надо позвонить маме")
+        // "позвони" is substring of "позвонить" — fuzzy matching may pick this up
+        assertEquals(IntentType.CALL_CONTACT, result.type)
+    }
+
+    @Test
+    fun `fuzzy boundary - позвон (missing и) matches with Levenshtein 1`() {
+        val result = classifier.classify("Позвон маме")
+        // Levenshtein("позвон", "позвони") = 1, within threshold
+        assertEquals(IntentType.CALL_CONTACT, result.type)
+    }
+
+    @Test
+    fun `multi-word fuzzy - мршрут (typo in маршрут) matches NAVIGATE`() {
+        val result = classifier.classify("Мршрут до дома")
+        // Levenshtein("мршрут", "маршрут") = 1, within threshold for fuzzy
+        assertEquals(IntentType.NAVIGATE, result.type)
+    }
+
+    @Test
+    fun `scoring is deterministic for same input`() {
+        val result1 = classifier.classify("Что видишь здесь?")
+        val result2 = classifier.classify("Что видишь здесь?")
+        assertEquals(result1.type, result2.type)
+        assertEquals(result1.confidence, result2.confidence, 0.001f)
+    }
 }

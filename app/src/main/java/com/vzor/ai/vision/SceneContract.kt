@@ -37,7 +37,9 @@ sealed interface SceneElement {
     /** Лицо, обнаруженное MediaPipe Face Detection. */
     data class FaceDetection(
         val landmarks: List<PointF> = emptyList(),
-        val expression: String? = null
+        val expression: String? = null,
+        val confidence: Float = 0f,
+        val headEulerAngles: List<Float> = emptyList()
     ) : SceneElement
 
     /** Высокоуровневое описание сцены от VLM (Qwen / Claude / Gemini). */

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -13,11 +14,13 @@ import com.vzor.ai.domain.model.AiProvider
 import com.vzor.ai.domain.model.SttProvider
 import com.vzor.ai.domain.model.TtsProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -55,6 +58,7 @@ class PreferencesManager @Inject constructor(
         private val KEY_TTS_PROVIDER = stringPreferencesKey("tts_provider")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system_prompt")
         private val KEY_LOCAL_AI_HOST = stringPreferencesKey("local_ai_host")
+        private val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
 
         // Ключи для EncryptedSharedPreferences (API keys)
         private const val ENCRYPTED_GEMINI_KEY = "gemini_api_key"
@@ -87,6 +91,10 @@ class PreferencesManager @Inject constructor(
         prefs[KEY_LOCAL_AI_HOST] ?: ""
     }
 
+    val developerMode: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_DEVELOPER_MODE] ?: false
+    }
+
     suspend fun setAiProvider(provider: AiProvider) {
         dataStore.edit { it[KEY_AI_PROVIDER] = provider.name }
     }
@@ -105,6 +113,10 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setLocalAiHost(host: String) {
         dataStore.edit { it[KEY_LOCAL_AI_HOST] = host }
+    }
+
+    suspend fun setDeveloperMode(enabled: Boolean) {
+        dataStore.edit { it[KEY_DEVELOPER_MODE] = enabled }
     }
 
     // --- API keys (EncryptedSharedPreferences, чувствительные) ---
@@ -141,32 +153,44 @@ class PreferencesManager @Inject constructor(
     val tavilyApiKey: StateFlow<String> = _tavilyApiKey.asStateFlow()
 
     suspend fun setGeminiApiKey(key: String) {
-        encryptedPrefs.edit().putString(ENCRYPTED_GEMINI_KEY, key).apply()
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_GEMINI_KEY, key).commit()
+        }
         _geminiApiKey.value = key
     }
 
     suspend fun setClaudeApiKey(key: String) {
-        encryptedPrefs.edit().putString(ENCRYPTED_CLAUDE_KEY, key).apply()
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_CLAUDE_KEY, key).commit()
+        }
         _claudeApiKey.value = key
     }
 
     suspend fun setOpenAiApiKey(key: String) {
-        encryptedPrefs.edit().putString(ENCRYPTED_OPENAI_KEY, key).apply()
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_OPENAI_KEY, key).commit()
+        }
         _openAiApiKey.value = key
     }
 
     suspend fun setYandexApiKey(key: String) {
-        encryptedPrefs.edit().putString(ENCRYPTED_YANDEX_KEY, key).apply()
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_YANDEX_KEY, key).commit()
+        }
         _yandexApiKey.value = key
     }
 
     suspend fun setGlmApiKey(key: String) {
-        encryptedPrefs.edit().putString(ENCRYPTED_GLM_KEY, key).apply()
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_GLM_KEY, key).commit()
+        }
         _glmApiKey.value = key
     }
 
     suspend fun setTavilyApiKey(key: String) {
-        encryptedPrefs.edit().putString(ENCRYPTED_TAVILY_KEY, key).apply()
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_TAVILY_KEY, key).commit()
+        }
         _tavilyApiKey.value = key
     }
 }

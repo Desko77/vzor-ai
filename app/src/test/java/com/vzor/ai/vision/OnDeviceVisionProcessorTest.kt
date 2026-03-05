@@ -94,4 +94,48 @@ class OnDeviceVisionProcessorTest {
         assertTrue(processor.isTextQuery("ПРОЧИТАЙ ЭТО"))
         assertTrue(processor.isTextQuery("READ THIS"))
     }
+
+    // --- isTextQuery: false-positive prevention (substring matching) ---
+
+    @Test
+    fun `isTextQuery false for текстура (contains текст)`() {
+        assertFalse(processor.isTextQuery("Это красивая текстура"))
+    }
+
+    @Test
+    fun `isTextQuery false for буквально (contains буквы)`() {
+        assertFalse(processor.isTextQuery("Это буквально невозможно"))
+    }
+
+    @Test
+    fun `isTextQuery false for словарь (contains слова)`() {
+        assertFalse(processor.isTextQuery("Открой словарь"))
+    }
+
+    @Test
+    fun `isTextQuery false for thread (contains read)`() {
+        assertFalse(processor.isTextQuery("Покажи этот thread на форуме"))
+    }
+
+    @Test
+    fun `isTextQuery false for texture (contains text)`() {
+        assertFalse(processor.isTextQuery("What texture is this fabric?"))
+    }
+
+    @Test
+    fun `isTextQuery false for context (contains text)`() {
+        assertFalse(processor.isTextQuery("In this context it means something else"))
+    }
+
+    // --- isTextQuery: Russian word forms (morphology) ---
+
+    @Test
+    fun `isTextQuery true for прочитайте (word form of прочитай)`() {
+        assertTrue(processor.isTextQuery("Прочитайте это"))
+    }
+
+    @Test
+    fun `isTextQuery true for текст with punctuation`() {
+        assertTrue(processor.isTextQuery("Какой текст?"))
+    }
 }

@@ -6,6 +6,7 @@ data class SceneData(
     val sceneSummary: String,       // English summary from VLM
     val objects: List<DetectedObject> = emptyList(),
     val text: List<String> = emptyList(),  // OCR text
+    val faceCount: Int = 0,         // Количество обнаруженных лиц (MediaPipe)
     val stability: Float = 0f,      // 0-1, scene stability score
     val ttlMs: Long = 5000          // Time-to-live
 ) {
