@@ -16,6 +16,9 @@ data class SettingsUiState(
     val geminiApiKey: String = "",
     val claudeApiKey: String = "",
     val openAiApiKey: String = "",
+    val glmApiKey: String = "",
+    val localAiHost: String = "",
+    val tavilyApiKey: String = "",
     val sttProvider: SttProvider = SttProvider.WHISPER,
     val ttsProvider: TtsProvider = TtsProvider.GOOGLE,
     val yandexApiKey: String = "",
@@ -68,6 +71,24 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+
+        viewModelScope.launch {
+            combine(
+                prefs.glmApiKey,
+                prefs.localAiHostOverride,
+                prefs.tavilyApiKey
+            ) { glmKey, localHost, tavilyKey ->
+                Triple(glmKey, localHost, tavilyKey)
+            }.collect { (glmKey, localHost, tavilyKey) ->
+                _uiState.update {
+                    it.copy(
+                        glmApiKey = glmKey,
+                        localAiHost = localHost,
+                        tavilyApiKey = tavilyKey
+                    )
+                }
+            }
+        }
     }
 
     fun setAiProvider(provider: AiProvider) {
@@ -100,5 +121,17 @@ class SettingsViewModel @Inject constructor(
 
     fun setSystemPrompt(prompt: String) {
         viewModelScope.launch { prefs.setSystemPrompt(prompt) }
+    }
+
+    fun setGlmApiKey(key: String) {
+        viewModelScope.launch { prefs.setGlmApiKey(key) }
+    }
+
+    fun setLocalAiHost(host: String) {
+        viewModelScope.launch { prefs.setLocalAiHost(host) }
+    }
+
+    fun setTavilyApiKey(key: String) {
+        viewModelScope.launch { prefs.setTavilyApiKey(key) }
     }
 }

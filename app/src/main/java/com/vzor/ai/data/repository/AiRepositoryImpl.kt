@@ -17,6 +17,8 @@ import javax.inject.Singleton
 class AiRepositoryImpl @Inject constructor(
     private val claudeApi: ClaudeApiService,
     private val openAiApi: OpenAiApiService,
+    private val glmApi: GlmApiService,
+    private val ollamaService: OllamaService,
     private val prefs: PreferencesManager
 ) : AiRepository {
 
@@ -35,6 +37,9 @@ class AiRepositoryImpl @Inject constructor(
             AiProvider.GEMINI -> getGeminiService().sendMessage(messages)
             AiProvider.CLAUDE -> sendClaude(messages)
             AiProvider.OPENAI -> sendOpenAi(messages)
+            AiProvider.GLM_5 -> sendGlm(messages)
+            AiProvider.LOCAL_QWEN -> sendOllama(messages)
+            AiProvider.OFFLINE_QWEN -> sendOllama(messages)
         }
     }
 
@@ -52,6 +57,24 @@ class AiRepositoryImpl @Inject constructor(
                 val result = sendOpenAi(messages)
                 result.onSuccess { emit(it) }
                 result.onFailure { throw it }
+            }
+            AiProvider.GLM_5 -> {
+                val result = sendGlm(messages)
+                result.onSuccess { emit(it) }
+                result.onFailure { throw it }
+            }
+            AiProvider.LOCAL_QWEN, AiProvider.OFFLINE_QWEN -> {
+                val ollamaMessages = messages.map { msg ->
+                    OllamaMessage(
+                        role = when (msg.role) {
+                            MessageRole.USER -> "user"
+                            MessageRole.ASSISTANT -> "assistant"
+                            MessageRole.SYSTEM -> "system"
+                        },
+                        content = msg.content
+                    )
+                }
+                ollamaService.streamMessage(messages = ollamaMessages).collect { emit(it) }
             }
         }
     }
@@ -95,6 +118,50 @@ class AiRepositoryImpl @Inject constructor(
 
         response.content.firstOrNull { it.type == "text" }?.text
             ?: throw Exception("Пустой ответ от Claude")
+    }
+
+    private suspend fun sendGlm(messages: List<Message>): Result<String> = runCatching {
+        val apiKey = prefs.glmApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ GLM-5 не указан" }
+
+        val openAiMessages = messages.map { msg ->
+            val role = when (msg.role) {
+                MessageRole.USER -> "user"
+                MessageRole.ASSISTANT -> "assistant"
+                MessageRole.SYSTEM -> "system"
+            }
+            OpenAiMessage(role = role, content = msg.content)
+        }
+
+        val response = glmApi.chatCompletion(
+            auth = "Bearer $apiKey",
+            request = OpenAiChatRequest(model = "glm-5", messages = openAiMessages)
+        )
+
+        response.choices.firstOrNull()?.message?.content
+            ?: throw Exception("Пустой ответ от GLM-5")
+    }
+
+    private suspend fun sendOllama(messages: List<Message>): Result<String> = runCatching {
+        // Update host from preferences if overridden
+        val hostOverride = prefs.localAiHostOverride.first()
+        if (hostOverride.isNotBlank()) {
+            ollamaService.updateHost(hostOverride)
+        }
+
+        val ollamaMessages = messages.map { msg ->
+            OllamaMessage(
+                role = when (msg.role) {
+                    MessageRole.USER -> "user"
+                    MessageRole.ASSISTANT -> "assistant"
+                    MessageRole.SYSTEM -> "system"
+                },
+                content = msg.content
+            )
+        }
+
+        val response = ollamaService.sendMessage(messages = ollamaMessages)
+        response.message?.content ?: throw Exception("Пустой ответ от Local AI")
     }
 
     private suspend fun sendOpenAi(messages: List<Message>): Result<String> = runCatching {

@@ -8,13 +8,20 @@ import com.vzor.ai.data.local.AppDatabase
 import com.vzor.ai.data.local.ConversationDao
 import com.vzor.ai.data.local.MessageDao
 import com.vzor.ai.data.remote.ClaudeApiService
+import com.vzor.ai.data.remote.GlmApiService
+import com.vzor.ai.data.remote.OllamaService
 import com.vzor.ai.data.remote.OpenAiApiService
+import com.vzor.ai.data.remote.TavilySearchService
 import com.vzor.ai.data.repository.AiRepositoryImpl
 import com.vzor.ai.data.repository.ConversationRepositoryImpl
 import com.vzor.ai.data.repository.VisionRepositoryImpl
 import com.vzor.ai.domain.repository.AiRepository
 import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.VisionRepository
+import com.vzor.ai.speech.SttService
+import com.vzor.ai.speech.WhisperSttService
+import com.vzor.ai.tts.TtsProvider
+import com.vzor.ai.tts.YandexTtsProvider
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -69,6 +76,31 @@ object NetworkModule {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(OpenAiApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGlmApi(okHttpClient: OkHttpClient, moshi: Moshi): GlmApiService =
+        Retrofit.Builder()
+            .baseUrl("https://open.bigmodel.cn/api/paas/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(GlmApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideTavilyApi(okHttpClient: OkHttpClient, moshi: Moshi): TavilySearchService =
+        Retrofit.Builder()
+            .baseUrl("https://api.tavily.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(TavilySearchService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideOllamaService(okHttpClient: OkHttpClient, moshi: Moshi): OllamaService =
+        OllamaService(okHttpClient, moshi)
 }
 
 @Module
@@ -104,4 +136,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindVisionRepository(impl: VisionRepositoryImpl): VisionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSttService(impl: WhisperSttService): SttService
+
+    @Binds
+    @Singleton
+    abstract fun bindTtsProvider(impl: YandexTtsProvider): TtsProvider
 }

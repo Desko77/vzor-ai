@@ -32,6 +32,9 @@ class PreferencesManager @Inject constructor(
         private val KEY_TTS_PROVIDER = stringPreferencesKey("tts_provider")
         private val KEY_YANDEX_API_KEY = stringPreferencesKey("yandex_api_key")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system_prompt")
+        private val KEY_LOCAL_AI_HOST = stringPreferencesKey("local_ai_host")
+        private val KEY_GLM_API_KEY = stringPreferencesKey("glm_api_key")
+        private val KEY_TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
     }
 
     val aiProvider: Flow<AiProvider> = dataStore.data.map { prefs ->
@@ -66,6 +69,18 @@ class PreferencesManager @Inject constructor(
         prefs[KEY_SYSTEM_PROMPT] ?: "Ты — полезный AI-ассистент. Отвечай на русском языке."
     }
 
+    val localAiHostOverride: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_LOCAL_AI_HOST] ?: ""
+    }
+
+    val glmApiKey: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_GLM_API_KEY] ?: ""
+    }
+
+    val tavilyApiKey: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_TAVILY_API_KEY] ?: ""
+    }
+
     suspend fun setAiProvider(provider: AiProvider) {
         dataStore.edit { it[KEY_AI_PROVIDER] = provider.name }
     }
@@ -96,5 +111,17 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setSystemPrompt(prompt: String) {
         dataStore.edit { it[KEY_SYSTEM_PROMPT] = prompt }
+    }
+
+    suspend fun setLocalAiHost(host: String) {
+        dataStore.edit { it[KEY_LOCAL_AI_HOST] = host }
+    }
+
+    suspend fun setGlmApiKey(key: String) {
+        dataStore.edit { it[KEY_GLM_API_KEY] = key }
+    }
+
+    suspend fun setTavilyApiKey(key: String) {
+        dataStore.edit { it[KEY_TAVILY_API_KEY] = key }
     }
 }

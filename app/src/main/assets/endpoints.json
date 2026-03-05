@@ -1,0 +1,21 @@
+{
+  "local_ai": {
+    "host": "192.168.1.100",
+    "port": 8080,
+    "stt_path": "/v1/stt",
+    "tts_path": "/v1/tts",
+    "llm_path": "/v1/chat/completions",
+    "vision_path": "/v1/vision",
+    "health_path": "/health"
+  },
+  "cloud": {
+    "claude_base_url": "https://api.anthropic.com",
+    "openai_base_url": "https://api.openai.com",
+    "gemini_base_url": "https://generativelanguage.googleapis.com",
+    "tavily_base_url": "https://api.tavily.com"
+  },
+  "offline": {
+    "model_path": "models/qwen3.5-4b",
+    "stt_model_path": "models/whisper-tiny"
+  }
+}

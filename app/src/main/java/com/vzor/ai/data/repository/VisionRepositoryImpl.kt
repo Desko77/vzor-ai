@@ -16,6 +16,7 @@ import javax.inject.Singleton
 class VisionRepositoryImpl @Inject constructor(
     private val claudeApi: ClaudeApiService,
     private val openAiApi: OpenAiApiService,
+    private val glmApi: GlmApiService,
     private val prefs: PreferencesManager
 ) : VisionRepository {
 
@@ -24,6 +25,11 @@ class VisionRepositoryImpl @Inject constructor(
             AiProvider.GEMINI -> analyzeWithGemini(imageBytes, prompt)
             AiProvider.CLAUDE -> analyzeWithClaude(imageBytes, prompt)
             AiProvider.OPENAI -> analyzeWithOpenAi(imageBytes, prompt)
+            AiProvider.GLM_5 -> analyzeWithGlm(imageBytes, prompt)
+            AiProvider.LOCAL_QWEN, AiProvider.OFFLINE_QWEN -> {
+                // Local/Offline vision: fallback to Gemini if available, otherwise error
+                analyzeWithGemini(imageBytes, prompt)
+            }
         }
     }
 
@@ -76,6 +82,35 @@ class VisionRepositoryImpl @Inject constructor(
 
             response.content.firstOrNull { it.type == "text" }?.text
                 ?: throw Exception("Пустой ответ от Claude Vision")
+        }
+
+    private suspend fun analyzeWithGlm(imageBytes: ByteArray, prompt: String): Result<String> =
+        runCatching {
+            val apiKey = prefs.glmApiKey.first()
+            require(apiKey.isNotBlank()) { "API ключ GLM-5 не указан" }
+
+            val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+            val response = glmApi.chatCompletion(
+                auth = "Bearer $apiKey",
+                request = OpenAiChatRequest(
+                    model = "glm-4v",
+                    messages = listOf(
+                        OpenAiMessage(
+                            role = "user",
+                            content = listOf(
+                                OpenAiContentPart(type = "text", text = prompt),
+                                OpenAiContentPart(
+                                    type = "image_url",
+                                    imageUrl = OpenAiImageUrl("data:image/jpeg;base64,$base64")
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+
+            response.choices.firstOrNull()?.message?.content
+                ?: throw Exception("Пустой ответ от GLM Vision")
         }
 
     private suspend fun analyzeWithOpenAi(imageBytes: ByteArray, prompt: String): Result<String> =

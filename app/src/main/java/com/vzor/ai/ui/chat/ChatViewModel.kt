@@ -12,7 +12,7 @@ import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
 import com.vzor.ai.speech.SttService
-import com.vzor.ai.tts.TtsService
+import com.vzor.ai.tts.TtsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -35,7 +35,7 @@ class ChatViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val glassesManager: GlassesManager,
     private val sttService: SttService,
-    private val ttsService: TtsService,
+    private val ttsManager: TtsManager,
     private val prefs: PreferencesManager
 ) : ViewModel() {
 
@@ -143,7 +143,7 @@ class ChatViewModel @Inject constructor(
 
                 // TTS: read response aloud if glasses connected
                 if (_uiState.value.glassesState == GlassesState.CONNECTED) {
-                    ttsService.speak(finalMessage.content)
+                    ttsManager.speak(finalMessage.content)
                 }
             }
         }
@@ -186,7 +186,7 @@ class ChatViewModel @Inject constructor(
                     conversationRepository.saveMessage(assistantMessage)
 
                     if (_uiState.value.glassesState == GlassesState.CONNECTED) {
-                        ttsService.speak(response)
+                        ttsManager.speak(response)
                     }
                 }
                 .onFailure { e ->
@@ -212,8 +212,8 @@ class ChatViewModel @Inject constructor(
                 .catch { e ->
                     _uiState.update { it.copy(isRecording = false, error = e.message) }
                 }
-                .collect { text ->
-                    _uiState.update { it.copy(currentInput = text) }
+                .collect { result ->
+                    _uiState.update { it.copy(currentInput = result.text) }
                 }
         }
     }

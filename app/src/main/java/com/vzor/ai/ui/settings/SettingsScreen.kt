@@ -74,6 +74,32 @@ fun SettingsScreen(
                 onValueChange = viewModel::setOpenAiApiKey
             )
 
+            ApiKeyField(
+                label = "GLM-5 (Zhipu) API Key",
+                value = uiState.glmApiKey,
+                onValueChange = viewModel::setGlmApiKey
+            )
+
+            ApiKeyField(
+                label = "Tavily Search API Key",
+                value = uiState.tavilyApiKey,
+                onValueChange = viewModel::setTavilyApiKey
+            )
+
+            HorizontalDivider()
+
+            // Local AI
+            SectionTitle("Local AI")
+
+            OutlinedTextField(
+                value = uiState.localAiHost,
+                onValueChange = viewModel::setLocalAiHost,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Local AI Host (IP:port)") },
+                singleLine = true,
+                placeholder = { Text("192.168.1.100") }
+            )
+
             HorizontalDivider()
 
             // STT Provider
@@ -131,7 +157,7 @@ private fun ProviderSelector(
     onSelect: (AiProvider) -> Unit
 ) {
     Column {
-        AiProvider.entries.forEach { provider ->
+        AiProvider.CLOUD_PROVIDERS.forEach { provider ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
