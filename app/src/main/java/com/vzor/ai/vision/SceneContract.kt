@@ -56,6 +56,12 @@ data class SceneAnalysisResult(
     val frameId: String,
     val timestamp: Long,
     val elements: List<SceneElement>,
+    /**
+     * Оценка стабильности сцены между кадрами (0.0–1.0).
+     * 0.0 — сцена нестабильна (движение, смена кадра).
+     * 1.0 — сцена полностью стабильна.
+     * Используется PerceptionCache для решения о замене кешированного результата.
+     */
     val stability: Float = 0f,
     val ttlMs: Long = 5000L
 ) {

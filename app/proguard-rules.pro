@@ -1,8 +1,19 @@
 # === Vzor AI ProGuard Rules ===
 
-# --- Moshi ---
--keep class com.vzor.ai.data.remote.** { *; }
--keepclassmembers class com.vzor.ai.data.remote.** { *; }
+# --- Retrofit API interfaces + Moshi DTOs (data.remote) ---
+# Keep Retrofit service interfaces (method annotations needed at runtime)
+-keep,allowobfuscation interface com.vzor.ai.data.remote.*Service { *; }
+-keep,allowobfuscation interface com.vzor.ai.data.remote.*Api { *; }
+# Keep Moshi data classes (JSON serialization requires field names)
+-keepclassmembers class com.vzor.ai.data.remote.** {
+    <init>(...);
+    <fields>;
+}
+-keep class com.vzor.ai.data.remote.**Request { *; }
+-keep class com.vzor.ai.data.remote.**Response { *; }
+-keep class com.vzor.ai.data.remote.**Message { *; }
+-keep class com.vzor.ai.data.remote.**Chunk { *; }
+-keep class com.vzor.ai.data.remote.**Result { *; }
 -keep @com.squareup.moshi.JsonClass class * { *; }
 -keepclassmembers class * {
     @com.squareup.moshi.Json <fields>;

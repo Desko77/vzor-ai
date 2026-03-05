@@ -99,4 +99,49 @@ class SentenceSegmenterTest {
         segmenter.onStreamEnd()
         assertTrue(sentences.size >= 2)
     }
+
+    // --- EN-only text ---
+
+    @Test
+    fun `flushes on period with EN-only text`() {
+        "Hello world how are you today.".split(" ").forEach { segmenter.onToken("$it ") }
+        assertEquals(1, sentences.size)
+        assertTrue(sentences[0].contains("Hello"))
+        assertTrue(sentences[0].contains("today"))
+    }
+
+    @Test
+    fun `EN-only question mark flushes sentence`() {
+        "What is the capital of France today?".split(" ").forEach { segmenter.onToken("$it ") }
+        assertEquals(1, sentences.size)
+        assertTrue(sentences[0].contains("France"))
+    }
+
+    // --- RU↔EN alternation ---
+
+    @Test
+    fun `alternating RU and EN sentences flush separately`() {
+        val text = "Привет мир как дела сегодня. Hello world how are you today. Снова русский текст вот тут."
+        text.split(" ").filter { it.isNotEmpty() }.forEach { segmenter.onToken("$it ") }
+        segmenter.onStreamEnd()
+        assertTrue("Expected at least 3 sentences, got ${sentences.size}", sentences.size >= 3)
+    }
+
+    @Test
+    fun `mixed RU and EN in single sentence stays together`() {
+        "Запусти YouTube и найди Imagine Dragons клип пожалуйста.".split(" ").forEach {
+            segmenter.onToken("$it ")
+        }
+        assertEquals(1, sentences.size)
+        assertTrue(sentences[0].contains("YouTube"))
+        assertTrue(sentences[0].contains("Imagine"))
+    }
+
+    // --- Semicolon punctuation ---
+
+    @Test
+    fun `flushes on semicolon with 5+ words`() {
+        "Первый пункт вот такой длинный;".split(" ").forEach { segmenter.onToken("$it ") }
+        assertEquals(1, sentences.size)
+    }
 }
