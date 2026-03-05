@@ -234,7 +234,7 @@ class IntentClassifierTest {
         assertEquals(0, classifier.levenshtein("abc", "abc"))
         assertEquals(1, classifier.levenshtein("позвони", "позвани"))
         assertEquals(1, classifier.levenshtein("повтори", "повтари"))
-        assertEquals(3, classifier.levenshtein("кот", "собака"))
+        assertEquals(5, classifier.levenshtein("кот", "собака"))
     }
 
     // --- Edge cases: slot extraction ---

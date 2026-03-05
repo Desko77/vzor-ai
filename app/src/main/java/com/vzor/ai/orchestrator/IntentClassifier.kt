@@ -34,6 +34,7 @@ class IntentClassifier @Inject constructor() {
         IntentRule(
             intentType = IntentType.VISION_QUERY,
             keywords = listOf(
+                WeightedKeyword("что ты видишь", 1.0f),
                 WeightedKeyword("что видишь", 1.0f),
                 WeightedKeyword("что это", 0.8f),
                 WeightedKeyword("посмотри", 0.9f),
@@ -54,7 +55,7 @@ class IntentClassifier @Inject constructor() {
             ),
             baseConfidence = 0.85f,
             requiresConfirmation = true,
-            slotExtractor = { text -> extractSlot(text, listOf("позвони", "набери", "вызови"), "contact") }
+            slotExtractor = { text -> extractSlot(text, listOf("позвони", "набери", "вызови"), "contact", fuzzyThreshold = 1) }
         ),
         // Message
         IntentRule(
@@ -66,7 +67,7 @@ class IntentClassifier @Inject constructor() {
             ),
             baseConfidence = 0.85f,
             requiresConfirmation = true,
-            slotExtractor = { text -> extractSlot(text, listOf("напиши", "отправь сообщение", "скажи в"), "contact") }
+            slotExtractor = { text -> extractSlot(text, listOf("напиши", "отправь сообщение", "скажи в"), "contact", fuzzyThreshold = 1) }
         ),
         // Music
         IntentRule(
@@ -83,8 +84,8 @@ class IntentClassifier @Inject constructor() {
         IntentRule(
             intentType = IntentType.NAVIGATE,
             keywords = listOf(
-                WeightedKeyword("навигация", 1.0f),
-                WeightedKeyword("маршрут", 1.0f),
+                WeightedKeyword("навигация", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("маршрут", 1.0f, fuzzyThreshold = 1),
                 WeightedKeyword("как доехать", 0.9f),
                 WeightedKeyword("как пройти", 0.9f)
             ),
@@ -264,31 +265,53 @@ class IntentClassifier @Inject constructor() {
         return prev[b.length]
     }
 
-    companion object {
-        /**
-         * Extract a slot value that follows trigger keywords.
-         */
-        private fun extractSlot(
-            text: String,
-            keywords: List<String>,
-            slotName: String
-        ): Map<String, String> {
-            // Try longest keywords first for more specific matches
-            for (keyword in keywords.sortedByDescending { it.length }) {
-                val index = text.indexOf(keyword)
-                if (index >= 0) {
-                    val afterKeyword = text.substring(index + keyword.length).trim()
-                    if (afterKeyword.isNotBlank()) {
-                        val value = if (slotName == "contact") {
-                            afterKeyword.split(" ").take(3).joinToString(" ")
-                        } else {
-                            afterKeyword
+    /**
+     * Extract a slot value that follows trigger keywords.
+     * Supports fuzzy word-level matching when [fuzzyThreshold] > 0.
+     */
+    private fun extractSlot(
+        text: String,
+        keywords: List<String>,
+        slotName: String,
+        fuzzyThreshold: Int = 0
+    ): Map<String, String> {
+        // Try longest keywords first for more specific matches
+        for (keyword in keywords.sortedByDescending { it.length }) {
+            // Exact substring match
+            val index = text.indexOf(keyword)
+            if (index >= 0) {
+                val afterKeyword = text.substring(index + keyword.length).trim()
+                if (afterKeyword.isNotBlank()) {
+                    val value = if (slotName == "contact") {
+                        afterKeyword.split(" ").take(3).joinToString(" ")
+                    } else {
+                        afterKeyword
+                    }
+                    return mapOf(slotName to value)
+                }
+            }
+
+            // Fuzzy word-level match for single-word keywords
+            if (fuzzyThreshold > 0) {
+                val textWords = text.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                val kwWords = keyword.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                if (kwWords.size == 1) {
+                    val matchIdx = textWords.indexOfFirst { levenshtein(it, kwWords[0]) <= fuzzyThreshold }
+                    if (matchIdx >= 0) {
+                        val afterWords = textWords.subList(matchIdx + 1, textWords.size)
+                        val afterText = afterWords.joinToString(" ").trim()
+                        if (afterText.isNotBlank()) {
+                            val value = if (slotName == "contact") {
+                                afterWords.take(3).joinToString(" ")
+                            } else {
+                                afterText
+                            }
+                            return mapOf(slotName to value)
                         }
-                        return mapOf(slotName to value)
                     }
                 }
             }
-            return emptyMap()
         }
+        return emptyMap()
     }
 }

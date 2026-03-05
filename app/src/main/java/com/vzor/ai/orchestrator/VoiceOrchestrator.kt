@@ -11,7 +11,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,28 +43,18 @@ class VoiceOrchestrator @Inject constructor(
     private val _state = MutableStateFlow(VoiceState.IDLE)
     val state: StateFlow<VoiceState> = _state.asStateFlow()
 
-    private val _events = MutableSharedFlow<VoiceEvent>(extraBufferCapacity = 16)
-
     private var currentSession: ConversationSession? = null
     private var errorRecoveryJob: Job? = null
 
     /** Listeners for state transitions (telemetry, UI, etc.). */
     private val transitionListeners = CopyOnWriteArrayList<(VoiceState, VoiceState, VoiceEvent) -> Unit>()
 
-    init {
-        scope.launch {
-            _events.collect { event ->
-                handleTransition(event)
-            }
-        }
-    }
-
     /**
      * Submit a [VoiceEvent] to the FSM for processing.
-     * Events are buffered; this call never blocks.
+     * Must be called from the main thread.
      */
     fun onEvent(event: VoiceEvent) {
-        _events.tryEmit(event)
+        handleTransition(event)
     }
 
     /**
@@ -234,7 +223,7 @@ class VoiceOrchestrator @Inject constructor(
         errorRecoveryJob?.cancel()
         errorRecoveryJob = scope.launch {
             delay(ERROR_RECOVERY_DELAY_MS)
-            onEvent(VoiceEvent.ErrorTimeout())
+            handleTransition(VoiceEvent.ErrorTimeout())
         }
     }
 
