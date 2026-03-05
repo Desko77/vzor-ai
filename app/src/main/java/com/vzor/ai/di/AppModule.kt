@@ -6,7 +6,9 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.vzor.ai.data.local.AppDatabase
 import com.vzor.ai.data.local.ConversationDao
+import com.vzor.ai.data.local.MemoryFactDao
 import com.vzor.ai.data.local.MessageDao
+import com.vzor.ai.data.local.SessionLogDao
 import com.vzor.ai.data.remote.ClaudeApiService
 import com.vzor.ai.data.remote.GlmApiService
 import com.vzor.ai.data.remote.OllamaService
@@ -14,9 +16,11 @@ import com.vzor.ai.data.remote.OpenAiApiService
 import com.vzor.ai.data.remote.TavilySearchService
 import com.vzor.ai.data.repository.AiRepositoryImpl
 import com.vzor.ai.data.repository.ConversationRepositoryImpl
+import com.vzor.ai.data.repository.MemoryRepositoryImpl
 import com.vzor.ai.data.repository.VisionRepositoryImpl
 import com.vzor.ai.domain.repository.AiRepository
 import com.vzor.ai.domain.repository.ConversationRepository
+import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.speech.SttService
 import com.vzor.ai.speech.WhisperSttService
@@ -119,6 +123,12 @@ object DatabaseModule {
 
     @Provides
     fun provideConversationDao(db: AppDatabase): ConversationDao = db.conversationDao()
+
+    @Provides
+    fun provideSessionLogDao(db: AppDatabase): SessionLogDao = db.sessionLogDao()
+
+    @Provides
+    fun provideMemoryFactDao(db: AppDatabase): MemoryFactDao = db.memoryFactDao()
 }
 
 @Module
@@ -136,6 +146,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindVisionRepository(impl: VisionRepositoryImpl): VisionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMemoryRepository(impl: MemoryRepositoryImpl): MemoryRepository
 
     @Binds
     @Singleton
