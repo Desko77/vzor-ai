@@ -7,9 +7,7 @@ import android.graphics.RectF
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.facedetector.FaceDetector
-import com.google.mediapipe.tasks.vision.facedetector.FaceDetectorOptions
 import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetector
-import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetectorOptions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,7 +33,7 @@ class MediaPipeVisionProcessor @Inject constructor(
         val baseOptions = BaseOptions.builder()
             .setModelAssetPath(FACE_MODEL)
             .build()
-        val options = FaceDetectorOptions.builder()
+        val options = FaceDetector.FaceDetectorOptions.builder()
             .setBaseOptions(baseOptions)
             .setMinDetectionConfidence(MIN_CONFIDENCE)
             .build()
@@ -46,7 +44,7 @@ class MediaPipeVisionProcessor @Inject constructor(
         val baseOptions = BaseOptions.builder()
             .setModelAssetPath(OBJECT_MODEL)
             .build()
-        val options = ObjectDetectorOptions.builder()
+        val options = ObjectDetector.ObjectDetectorOptions.builder()
             .setBaseOptions(baseOptions)
             .setMaxResults(MAX_RESULTS)
             .setScoreThreshold(MIN_CONFIDENCE)

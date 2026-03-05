@@ -16,6 +16,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.takeWhile
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.isActive
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -207,6 +209,107 @@ class AudioStreamHandler @Inject constructor(
     fun stopCapture() {
         Log.d(TAG, "stopCapture() called")
         isCapturing = false
+    }
+
+    /**
+     * Alias for [stopCapture] — used by STT services.
+     */
+    fun stop() = stopCapture()
+
+    /**
+     * Returns a streaming Flow of PCM audio chunks.
+     * Alias for [startCapture], used by YandexSttService for streaming recognition.
+     */
+    fun streamAudio(): Flow<ByteArray> = startCapture()
+
+    /**
+     * Record audio until silence is detected after speech (VAD-based endpoint detection).
+     * Used by WhisperSttService for batch recognition.
+     *
+     * @return Complete PCM 16-bit mono 16kHz audio data as ByteArray
+     */
+    suspend fun recordUntilSilence(): ByteArray {
+        val buffer = ByteArrayOutputStream()
+        var consecutiveSilenceChunks = 0
+        var hasDetectedSpeech = false
+        var chunkCount = 0
+
+        startCapture()
+            .takeWhile { chunk ->
+                chunkCount++
+                val isSilent = !isAboveSilenceThreshold(chunk)
+                if (!isSilent) {
+                    hasDetectedSpeech = true
+                    consecutiveSilenceChunks = 0
+                } else if (hasDetectedSpeech) {
+                    consecutiveSilenceChunks++
+                }
+                // Continue while: not yet silence-after-speech AND within 30s max
+                val shouldContinue = !(hasDetectedSpeech && consecutiveSilenceChunks >= 25) &&
+                    chunkCount < 1500
+                if (!shouldContinue) stopCapture()
+                shouldContinue
+            }
+            .collect { chunk ->
+                buffer.write(chunk)
+            }
+
+        return buffer.toByteArray()
+    }
+
+    /**
+     * Convert raw PCM 16-bit mono audio data to WAV format.
+     * Adds a standard 44-byte WAV header.
+     *
+     * @param pcmData Raw PCM 16-bit mono 16kHz audio bytes
+     * @return WAV-formatted audio bytes
+     */
+    fun pcmToWav(pcmData: ByteArray): ByteArray {
+        val wavHeader = ByteArray(44)
+        val totalDataLen = pcmData.size + 36
+        val byteRate = SAMPLE_RATE * 2
+        // RIFF header
+        wavHeader[0] = 'R'.code.toByte()
+        wavHeader[1] = 'I'.code.toByte()
+        wavHeader[2] = 'F'.code.toByte()
+        wavHeader[3] = 'F'.code.toByte()
+        writeIntLE(wavHeader, 4, totalDataLen)
+        wavHeader[8] = 'W'.code.toByte()
+        wavHeader[9] = 'A'.code.toByte()
+        wavHeader[10] = 'V'.code.toByte()
+        wavHeader[11] = 'E'.code.toByte()
+        // fmt subchunk
+        wavHeader[12] = 'f'.code.toByte()
+        wavHeader[13] = 'm'.code.toByte()
+        wavHeader[14] = 't'.code.toByte()
+        wavHeader[15] = ' '.code.toByte()
+        writeIntLE(wavHeader, 16, 16) // Subchunk1Size
+        writeShortLE(wavHeader, 20, 1) // AudioFormat (PCM)
+        writeShortLE(wavHeader, 22, 1) // NumChannels (mono)
+        writeIntLE(wavHeader, 24, SAMPLE_RATE)
+        writeIntLE(wavHeader, 28, byteRate)
+        writeShortLE(wavHeader, 32, 2) // BlockAlign
+        writeShortLE(wavHeader, 34, 16) // BitsPerSample
+        // data subchunk
+        wavHeader[36] = 'd'.code.toByte()
+        wavHeader[37] = 'a'.code.toByte()
+        wavHeader[38] = 't'.code.toByte()
+        wavHeader[39] = 'a'.code.toByte()
+        writeIntLE(wavHeader, 40, pcmData.size)
+
+        return wavHeader + pcmData
+    }
+
+    private fun writeIntLE(data: ByteArray, offset: Int, value: Int) {
+        data[offset] = (value and 0xFF).toByte()
+        data[offset + 1] = ((value shr 8) and 0xFF).toByte()
+        data[offset + 2] = ((value shr 16) and 0xFF).toByte()
+        data[offset + 3] = ((value shr 24) and 0xFF).toByte()
+    }
+
+    private fun writeShortLE(data: ByteArray, offset: Int, value: Int) {
+        data[offset] = (value and 0xFF).toByte()
+        data[offset + 1] = ((value shr 8) and 0xFF).toByte()
     }
 
     /**

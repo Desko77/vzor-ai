@@ -53,6 +53,21 @@ class NoiseProfileDetector @Inject constructor() {
         _currentProfile.value = NoiseProfile.fromDbLevel(db)
     }
 
+    /**
+     * Feed raw PCM 16-bit mono audio as ByteArray for noise analysis.
+     * Converts to ShortArray and delegates to [processAudioFrame].
+     */
+    fun updateFromAudio(pcmData: ByteArray) {
+        if (pcmData.size < 2) return
+        val shorts = ShortArray(pcmData.size / 2)
+        for (i in shorts.indices) {
+            val low = pcmData[i * 2].toInt() and 0xFF
+            val high = pcmData[i * 2 + 1].toInt()
+            shorts[i] = ((high shl 8) or low).toShort()
+        }
+        processAudioFrame(shorts)
+    }
+
     fun reset() {
         synchronized(rmsWindow) { rmsWindow.clear() }
         _currentDb.value = 0f
