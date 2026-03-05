@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -26,6 +27,7 @@ import com.vzor.ai.ui.history.HistoryScreen
 import com.vzor.ai.ui.home.HomeScreen
 import com.vzor.ai.ui.logs.LogsScreen
 import com.vzor.ai.ui.settings.SettingsScreen
+import com.vzor.ai.ui.translation.TranslationScreen
 
 object Routes {
     const val HOME = "home"
@@ -33,6 +35,7 @@ object Routes {
     const val HISTORY = "history"
     const val SETTINGS = "settings"
     const val LOGS = "logs"
+    const val TRANSLATION = "translation"
 }
 
 private data class BottomNavItem(
@@ -44,6 +47,7 @@ private data class BottomNavItem(
 private val bottomNavItems = listOf(
     BottomNavItem(Routes.HOME, "Home", Icons.Default.Home),
     BottomNavItem(Routes.CHAT, "Chat", Icons.Default.Chat),
+    BottomNavItem(Routes.TRANSLATION, "Translate", Icons.Default.Translate),
     BottomNavItem(Routes.HISTORY, "History", Icons.Default.History)
 )
 
@@ -111,6 +115,12 @@ fun VzorNavGraph() {
             composable(Routes.HISTORY) {
                 HistoryScreen(
                     onNavigateToSettings = { navController.navigate(Routes.SETTINGS) }
+                )
+            }
+
+            composable(Routes.TRANSLATION) {
+                TranslationScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 
