@@ -102,4 +102,55 @@ class TtsManagerSegmentationTest {
         assertEquals(1, result.size)
         assertEquals("ru", result[0].second)
     }
+
+    // --- Edge cases ---
+
+    @Test
+    fun `multiple spaces between languages`() {
+        val result = ttsManager.segmentByLanguage("Привет    hello")
+        assertEquals(2, result.size)
+        assertEquals("ru", result[0].second)
+        assertEquals("en", result[1].second)
+    }
+
+    @Test
+    fun `newline between languages`() {
+        val result = ttsManager.segmentByLanguage("Привет\nhello")
+        // Newline is non-alphabetic, attaches to current segment; then language switch
+        assertEquals(2, result.size)
+        assertEquals("ru", result[0].second)
+        assertEquals("en", result[1].second)
+    }
+
+    @Test
+    fun `unicode punctuation between languages`() {
+        val result = ttsManager.segmentByLanguage("Привет—hello")
+        // Em-dash is non-alphabetic, should segment by language
+        assertEquals(2, result.size)
+    }
+
+    @Test
+    fun `digits at language boundary`() {
+        val result = ttsManager.segmentByLanguage("Привет 123 hello world")
+        // "Привет 123" should be ru, "hello world" should be en
+        assertTrue(result.size >= 2)
+        assertEquals("ru", result[0].second)
+        assertEquals("en", result.last().second)
+    }
+
+    @Test
+    fun `only digits and punctuation defaults to ru`() {
+        val result = ttsManager.segmentByLanguage("123 !@#")
+        assertEquals(1, result.size)
+        assertEquals("ru", result[0].second)
+    }
+
+    @Test
+    fun `long alternating RU-EN-RU-EN-RU`() {
+        val result = ttsManager.segmentByLanguage("Русский text Ещё more Конец")
+        assertTrue("Expected at least 3 segments", result.size >= 3)
+        assertEquals("ru", result[0].second)
+        assertEquals("en", result[1].second)
+        assertEquals("ru", result.last().second)
+    }
 }

@@ -1,5 +1,6 @@
 package com.vzor.ai.vision
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -20,6 +21,7 @@ class FrameSampler @Inject constructor() {
     private val effectiveMode = AtomicReference(SamplingMode.IDLE)
     private val lastCaptureTimestamp = AtomicLong(0L)
     private val lowBattery = AtomicReference(false)
+    private val isProcessing = AtomicBoolean(false)
 
     /**
      * Sets the desired sampling mode. The effective mode may be lower
@@ -45,9 +47,18 @@ class FrameSampler @Inject constructor() {
      * to warrant a new frame, based on the current effective fps.
      * Always returns false in IDLE mode.
      */
+    /**
+     * Устанавливает флаг обработки кадра для backpressure.
+     * Если кадр обрабатывается, [shouldCaptureFrame] возвращает false.
+     */
+    fun setProcessing(processing: Boolean) {
+        isProcessing.set(processing)
+    }
+
     fun shouldCaptureFrame(): Boolean {
         val mode = effectiveMode.get()
         if (mode == SamplingMode.IDLE || mode.fps <= 0) return false
+        if (isProcessing.get()) return false
 
         val intervalMs = 1000L / mode.fps
         val now = System.currentTimeMillis()

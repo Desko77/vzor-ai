@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -136,6 +137,24 @@ fun SettingsScreen(
                 maxLines = 6,
                 label = { Text(stringResource(R.string.system_prompt_hint)) }
             )
+
+            HorizontalDivider()
+
+            // Режим разработчика
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Режим разработчика",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Switch(
+                    checked = uiState.developerMode,
+                    onCheckedChange = viewModel::setDeveloperMode
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }

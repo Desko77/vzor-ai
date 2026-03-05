@@ -106,6 +106,9 @@ dependencies {
     // ML Kit (on-device OCR)
     implementation(libs.mlkit.text)
 
+    // MediaPipe (face/object detection)
+    implementation(libs.mediapipe.vision)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

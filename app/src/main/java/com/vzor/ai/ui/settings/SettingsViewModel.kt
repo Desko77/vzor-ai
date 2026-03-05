@@ -22,7 +22,8 @@ data class SettingsUiState(
     val sttProvider: SttProvider = SttProvider.WHISPER,
     val ttsProvider: TtsProvider = TtsProvider.GOOGLE,
     val yandexApiKey: String = "",
-    val systemPrompt: String = ""
+    val systemPrompt: String = "",
+    val developerMode: Boolean = false
 )
 
 @HiltViewModel
@@ -76,15 +77,17 @@ class SettingsViewModel @Inject constructor(
             combine(
                 prefs.glmApiKey,
                 prefs.localAiHostOverride,
-                prefs.tavilyApiKey
-            ) { glmKey, localHost, tavilyKey ->
-                Triple(glmKey, localHost, tavilyKey)
-            }.collect { (glmKey, localHost, tavilyKey) ->
+                prefs.tavilyApiKey,
+                prefs.developerMode
+            ) { glmKey, localHost, tavilyKey, devMode ->
+                arrayOf(glmKey, localHost, tavilyKey, devMode)
+            }.collect { values ->
                 _uiState.update {
                     it.copy(
-                        glmApiKey = glmKey,
-                        localAiHost = localHost,
-                        tavilyApiKey = tavilyKey
+                        glmApiKey = values[0] as String,
+                        localAiHost = values[1] as String,
+                        tavilyApiKey = values[2] as String,
+                        developerMode = values[3] as Boolean
                     )
                 }
             }
@@ -133,5 +136,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setTavilyApiKey(key: String) {
         viewModelScope.launch { prefs.setTavilyApiKey(key) }
+    }
+
+    fun setDeveloperMode(enabled: Boolean) {
+        viewModelScope.launch { prefs.setDeveloperMode(enabled) }
     }
 }

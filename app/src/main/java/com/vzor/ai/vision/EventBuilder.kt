@@ -9,7 +9,9 @@ enum class VisionEventType {
     TEXT_CHANGED,
     SCENE_CHANGED,
     NEW_OBJECT,
-    OBJECT_REMOVED
+    OBJECT_REMOVED,
+    FACE_DETECTED,
+    FACE_LOST
 }
 
 data class VisionEvent(
@@ -109,6 +111,28 @@ class EventBuilder @Inject constructor() {
                 VisionEvent(
                     type = VisionEventType.OBJECT_REMOVED,
                     description = "Object no longer visible: $label",
+                    timestamp = now
+                )
+            )
+        }
+
+        // --- Face events ---
+        val prevFaces = previous.faceCount
+        val currFaces = current.faceCount
+
+        if (prevFaces == 0 && currFaces > 0) {
+            events.add(
+                VisionEvent(
+                    type = VisionEventType.FACE_DETECTED,
+                    description = "Face detected: $currFaces ${if (currFaces == 1) "face" else "faces"} visible",
+                    timestamp = now
+                )
+            )
+        } else if (prevFaces > 0 && currFaces == 0) {
+            events.add(
+                VisionEvent(
+                    type = VisionEventType.FACE_LOST,
+                    description = "All faces lost from view",
                     timestamp = now
                 )
             )

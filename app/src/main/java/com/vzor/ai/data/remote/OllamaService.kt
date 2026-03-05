@@ -29,9 +29,15 @@ class OllamaService(
     suspend fun sendMessage(
         model: String = "qwen3.5:9b",
         messages: List<OllamaMessage>,
-        stream: Boolean = false
+        stream: Boolean = false,
+        keepAlive: String? = null
     ): OllamaResponse {
-        val request = OllamaChatRequest(model = model, messages = messages, stream = false)
+        val request = OllamaChatRequest(
+            model = model,
+            messages = messages,
+            stream = false,
+            keepAlive = keepAlive ?: defaultKeepAlive(model)
+        )
         val json = moshi.adapter(OllamaChatRequest::class.java).toJson(request)
 
         val httpRequest = Request.Builder()
@@ -48,9 +54,15 @@ class OllamaService(
 
     fun streamMessage(
         model: String = "qwen3.5:9b",
-        messages: List<OllamaMessage>
+        messages: List<OllamaMessage>,
+        keepAlive: String? = null
     ): Flow<String> = flow {
-        val request = OllamaChatRequest(model = model, messages = messages, stream = true)
+        val request = OllamaChatRequest(
+            model = model,
+            messages = messages,
+            stream = true,
+            keepAlive = keepAlive ?: defaultKeepAlive(model)
+        )
         val json = moshi.adapter(OllamaChatRequest::class.java).toJson(request)
 
         val httpRequest = Request.Builder()
@@ -77,6 +89,16 @@ class OllamaService(
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Определяет keep_alive в зависимости от размера модели.
+     * Большие модели дольше держатся в RAM для переиспользования.
+     */
+    private fun defaultKeepAlive(model: String): String = when {
+        model.contains("9b") || model.contains("14b") -> "10m"
+        model.contains("4b") || model.contains("1b") -> "3m"
+        else -> "5m"
+    }
 
     suspend fun isHealthy(): Boolean {
         return try {

@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -13,7 +14,9 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -27,6 +30,8 @@ import com.vzor.ai.ui.history.HistoryScreen
 import com.vzor.ai.ui.home.HomeScreen
 import com.vzor.ai.ui.logs.LogsScreen
 import com.vzor.ai.ui.settings.SettingsScreen
+import com.vzor.ai.ui.settings.SettingsViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.vzor.ai.ui.translation.TranslationScreen
 
 object Routes {
@@ -51,14 +56,23 @@ private val bottomNavItems = listOf(
     BottomNavItem(Routes.HISTORY, "History", Icons.Default.History)
 )
 
+private val logsNavItem = BottomNavItem(Routes.LOGS, "Logs", Icons.Default.Terminal)
+
 @Composable
-fun VzorNavGraph() {
+fun VzorNavGraph(
+    settingsViewModel: SettingsViewModel = hiltViewModel()
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // Only show bottom bar on main tabs (not on Settings or Logs)
-    val showBottomBar = currentDestination?.route in bottomNavItems.map { it.route }
+    val settingsState by settingsViewModel.uiState.collectAsState()
+    val activeNavItems = remember(settingsState.developerMode) {
+        if (settingsState.developerMode) bottomNavItems + logsNavItem else bottomNavItems
+    }
+
+    // Only show bottom bar on main tabs (not on Settings)
+    val showBottomBar = currentDestination?.route in activeNavItems.map { it.route }
 
     Scaffold(
         bottomBar = {
@@ -67,7 +81,7 @@ fun VzorNavGraph() {
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
-                    bottomNavItems.forEach { item ->
+                    activeNavItems.forEach { item ->
                         val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
 
                         NavigationBarItem(
