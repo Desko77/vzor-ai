@@ -434,6 +434,157 @@ class VoiceOrchestratorTest {
         assertEquals(VoiceState.IDLE, orchestrator.state.value)
     }
 
+    // --- 13. ErrorOccurred from GENERATING and RESPONDING ---
+
+    @Test
+    fun `error from GENERATING transitions to ERROR`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            driveToState(VoiceState.GENERATING)
+            skipItems(3) // LISTENING, PROCESSING, GENERATING
+
+            orchestrator.onEvent(VoiceEvent.ErrorOccurred(RuntimeException("LLM timeout")))
+            assertEquals(VoiceState.ERROR, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `error from RESPONDING transitions to ERROR`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            driveToState(VoiceState.RESPONDING)
+            skipItems(4) // LISTENING, PROCESSING, GENERATING, RESPONDING
+
+            orchestrator.onEvent(VoiceEvent.ErrorOccurred(RuntimeException("TTS playback failed")))
+            assertEquals(VoiceState.ERROR, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // --- 14. HardReset from remaining states ---
+
+    @Test
+    fun `hard reset from IDLE stays IDLE`() = runTest {
+        orchestrator.state.test {
+            assertEquals(VoiceState.IDLE, awaitItem())
+
+            orchestrator.onEvent(VoiceEvent.HardReset)
+            // HardReset resolves to IDLE, but since currentState == newState, no emission
+            expectNoEvents()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `hard reset from PROCESSING returns to IDLE`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            driveToState(VoiceState.PROCESSING)
+            skipItems(2) // LISTENING, PROCESSING
+
+            orchestrator.onEvent(VoiceEvent.HardReset)
+            assertEquals(VoiceState.IDLE, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        verify { ttsService.stop() }
+        verify { sttService.stopListening() }
+    }
+
+    @Test
+    fun `hard reset from RESPONDING returns to IDLE`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            driveToState(VoiceState.RESPONDING)
+            skipItems(4) // LISTENING, PROCESSING, GENERATING, RESPONDING
+
+            orchestrator.onEvent(VoiceEvent.HardReset)
+            assertEquals(VoiceState.IDLE, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        verify { ttsService.stop() }
+    }
+
+    @Test
+    fun `hard reset from CONFIRMING returns to IDLE`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            driveToState(VoiceState.CONFIRMING)
+            skipItems(3) // LISTENING, PROCESSING, GENERATING→CONFIRMING
+
+            orchestrator.onEvent(VoiceEvent.HardReset)
+            assertEquals(VoiceState.IDLE, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // --- 15. Auto-recovery ErrorTimeout via delay ---
+
+    @Test
+    fun `error auto-recovery fires after 3 seconds`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            orchestrator.onEvent(VoiceEvent.WakeWordDetected())
+            assertEquals(VoiceState.LISTENING, awaitItem())
+
+            orchestrator.onEvent(VoiceEvent.ErrorOccurred(RuntimeException("test")))
+            assertEquals(VoiceState.ERROR, awaitItem())
+
+            // Auto-recovery should fire after 3000ms
+            testScheduler.advanceTimeBy(3100)
+
+            assertEquals(VoiceState.IDLE, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // --- 16. Race conditions ---
+
+    @Test
+    fun `double-tap ButtonPressed stays in LISTENING`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+
+            orchestrator.onEvent(VoiceEvent.ButtonPressed)
+            assertEquals(VoiceState.LISTENING, awaitItem())
+
+            // Second ButtonPressed — invalid from LISTENING, should be ignored
+            orchestrator.onEvent(VoiceEvent.ButtonPressed)
+            expectNoEvents()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `rapid BargeIn then HardReset from GENERATING`() = runTest {
+        orchestrator.state.test {
+            skipItems(1) // IDLE
+            driveToState(VoiceState.GENERATING)
+            skipItems(3) // LISTENING, PROCESSING, GENERATING
+
+            // Rapid sequence: BargeIn → HardReset
+            orchestrator.onEvent(VoiceEvent.BargeIn)
+            orchestrator.onEvent(VoiceEvent.HardReset)
+
+            // BargeIn: GENERATING → LISTENING
+            assertEquals(VoiceState.LISTENING, awaitItem())
+            // HardReset: LISTENING → IDLE
+            assertEquals(VoiceState.IDLE, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // --- Helpers ---
 
     /**

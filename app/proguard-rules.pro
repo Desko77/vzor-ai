@@ -72,5 +72,9 @@
 -keep class com.google.ai.client.generativeai.** { *; }
 -dontwarn com.google.ai.client.generativeai.**
 
+# --- AndroidX Security Crypto (EncryptedSharedPreferences) ---
+-keep class androidx.security.crypto.** { *; }
+-dontwarn androidx.security.crypto.**
+
 # --- Vzor domain models ---
 -keep class com.vzor.ai.domain.model.** { *; }

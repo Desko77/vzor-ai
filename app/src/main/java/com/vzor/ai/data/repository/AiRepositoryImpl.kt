@@ -23,13 +23,18 @@ class AiRepositoryImpl @Inject constructor(
 ) : AiRepository {
 
     private var geminiService: GeminiService? = null
+    private var geminiServiceKey: String = ""
 
     private suspend fun getGeminiService(): GeminiService {
         val key = prefs.geminiApiKey.first()
-        if (geminiService == null || key.isNotEmpty()) {
-            geminiService = GeminiService(key)
+        val existing = geminiService
+        if (existing != null && key == geminiServiceKey) {
+            return existing
         }
-        return geminiService!!
+        return GeminiService(key).also {
+            geminiService = it
+            geminiServiceKey = key
+        }
     }
 
     override suspend fun sendMessage(messages: List<Message>): Result<String> {

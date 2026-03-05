@@ -39,11 +39,11 @@ class OllamaService(
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
 
-        val response = okHttpClient.newCall(httpRequest).execute()
-        val body = response.body?.string() ?: throw Exception("Empty response from Ollama")
-
-        return moshi.adapter(OllamaResponse::class.java).fromJson(body)
-            ?: throw Exception("Failed to parse Ollama response")
+        return okHttpClient.newCall(httpRequest).execute().use { response ->
+            val body = response.body?.string() ?: throw Exception("Empty response from Ollama")
+            moshi.adapter(OllamaResponse::class.java).fromJson(body)
+                ?: throw Exception("Failed to parse Ollama response")
+        }
     }
 
     fun streamMessage(
@@ -58,25 +58,24 @@ class OllamaService(
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
 
-        val response = okHttpClient.newCall(httpRequest).execute()
-        val source = response.body?.source() ?: throw Exception("Empty stream from Ollama")
+        okHttpClient.newCall(httpRequest).execute().use { response ->
+            val source = response.body?.source() ?: throw Exception("Empty stream from Ollama")
 
-        val adapter = moshi.adapter(OllamaStreamChunk::class.java)
+            val adapter = moshi.adapter(OllamaStreamChunk::class.java)
 
-        while (!source.exhausted()) {
-            val line = source.readUtf8Line() ?: break
-            if (line.isBlank()) continue
+            while (!source.exhausted()) {
+                val line = source.readUtf8Line() ?: break
+                if (line.isBlank()) continue
 
-            val chunk = adapter.fromJson(line) ?: continue
-            val content = chunk.message?.content
-            if (!content.isNullOrEmpty()) {
-                emit(content)
+                val chunk = adapter.fromJson(line) ?: continue
+                val content = chunk.message?.content
+                if (!content.isNullOrEmpty()) {
+                    emit(content)
+                }
+
+                if (chunk.done == true) break
             }
-
-            if (chunk.done == true) break
         }
-
-        response.close()
     }.flowOn(Dispatchers.IO)
 
     suspend fun isHealthy(): Boolean {
@@ -85,10 +84,7 @@ class OllamaService(
                 .url("$baseUrl/api/tags")
                 .get()
                 .build()
-            val response = okHttpClient.newCall(request).execute()
-            val healthy = response.isSuccessful
-            response.close()
-            healthy
+            okHttpClient.newCall(request).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             false
         }
