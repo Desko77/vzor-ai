@@ -73,6 +73,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="vzor-ai" android:host="wearables-callback" />
             </intent-filter>
+
+            <!-- Accept shared images (e.g. from Meta View app after WiFi import) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
         </activity>
 
         <service
