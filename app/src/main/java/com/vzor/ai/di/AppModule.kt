@@ -2,6 +2,7 @@ package com.vzor.ai.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.vzor.ai.data.local.AppDatabase
@@ -134,10 +135,41 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "vzor_db")
+    fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
+        // SQLCipher: шифрование БД at-rest (ADR-SEC-001)
+        val passphrase = getOrCreatePassphrase(context)
+        val factory: SupportSQLiteOpenHelper.Factory =
+            net.zetetic.database.sqlcipher.SupportOpenHelperFactory(passphrase)
+
+        return Room.databaseBuilder(context, AppDatabase::class.java, "vzor_db")
+            .openHelperFactory(factory)
             .addMigrations(*AppDatabase.MIGRATIONS)
             .build()
+    }
+
+    /**
+     * Генерирует или читает passphrase для SQLCipher из EncryptedSharedPreferences.
+     * Ключ хранится в Android Keystore — недоступен без root.
+     */
+    private fun getOrCreatePassphrase(context: Context): ByteArray {
+        val prefs = androidx.security.crypto.EncryptedSharedPreferences.create(
+            "vzor_db_key",
+            androidx.security.crypto.MasterKeys.getOrCreate(
+                androidx.security.crypto.MasterKeys.AES256_GCM_SPEC
+            ),
+            context,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        val existing = prefs.getString("db_passphrase", null)
+        if (existing != null) {
+            return existing.toByteArray()
+        }
+        val passphrase = java.util.UUID.randomUUID().toString() +
+            java.util.UUID.randomUUID().toString()
+        prefs.edit().putString("db_passphrase", passphrase).apply()
+        return passphrase.toByteArray()
+    }
 
     @Provides
     fun provideMessageDao(db: AppDatabase): MessageDao = db.messageDao()

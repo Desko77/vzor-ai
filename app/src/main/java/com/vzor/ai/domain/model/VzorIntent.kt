@@ -20,5 +20,8 @@ enum class IntentType {
     WEB_SEARCH,         // "Найди в интернете" → Tavily
     MEMORY_QUERY,       // "Где я припарковался?" → Persistent Memory
     REPEAT_LAST,        // "Повтори" → SessionLog
+    CAPTURE_PHOTO,      // "Сфотографируй" → GlassesManager.capturePhoto (UC#11)
+    LIVE_COMMENTARY,    // "Включи комментарий" → LiveCommentaryService (UC#6)
+    CONVERSATION_FOCUS, // "Режим фокуса" → ConversationFocusManager (UC#13)
     UNKNOWN
 }

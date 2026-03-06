@@ -150,6 +150,46 @@ class IntentClassifier @Inject constructor() {
                 WeightedKeyword("ещё раз", 0.9f)
             ),
             baseConfidence = 0.9f
+        ),
+        // Capture Photo (UC#11: фото hands-free)
+        IntentRule(
+            intentType = IntentType.CAPTURE_PHOTO,
+            keywords = listOf(
+                WeightedKeyword("сфотографируй", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("сделай фото", 1.0f),
+                WeightedKeyword("сделай снимок", 1.0f),
+                WeightedKeyword("фотка", 0.8f),
+                WeightedKeyword("щёлкни", 0.8f, fuzzyThreshold = 1)
+            ),
+            baseConfidence = 0.9f,
+            requiresVision = true
+        ),
+        // Live Commentary (UC#6: непрерывный AI-комментарий)
+        IntentRule(
+            intentType = IntentType.LIVE_COMMENTARY,
+            keywords = listOf(
+                WeightedKeyword("включи комментарий", 1.0f),
+                WeightedKeyword("режим наблюдения", 1.0f),
+                WeightedKeyword("комментируй", 1.0f, fuzzyThreshold = 1),
+                WeightedKeyword("что вокруг", 0.8f),
+                WeightedKeyword("выключи комментарий", 1.0f),
+                WeightedKeyword("хватит комментировать", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
+        ),
+        // Conversation Focus (UC#13: режим фокуса на разговоре)
+        IntentRule(
+            intentType = IntentType.CONVERSATION_FOCUS,
+            keywords = listOf(
+                WeightedKeyword("режим фокуса", 1.0f),
+                WeightedKeyword("слушай разговор", 1.0f),
+                WeightedKeyword("саммари разговора", 0.9f),
+                WeightedKeyword("что обсуждали", 0.8f),
+                WeightedKeyword("ключевые моменты", 0.8f),
+                WeightedKeyword("выключи фокус", 1.0f)
+            ),
+            baseConfidence = 0.85f
         )
     )
 

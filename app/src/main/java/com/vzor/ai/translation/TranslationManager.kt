@@ -2,6 +2,7 @@ package com.vzor.ai.translation
 
 import android.util.Log
 import com.vzor.ai.data.local.PreferencesManager
+import com.vzor.ai.data.remote.YandexDetectRequest
 import com.vzor.ai.data.remote.YandexTranslateRequest
 import com.vzor.ai.data.remote.YandexTranslateService
 import com.vzor.ai.domain.model.Message
@@ -180,7 +181,7 @@ class TranslationManager @Inject constructor(
     /**
      * Resolve source and target languages based on mode and detected language.
      */
-    private fun resolveLanguagePair(
+    private suspend fun resolveLanguagePair(
         mode: TranslationMode,
         text: String,
         detectedLang: String
@@ -195,8 +196,8 @@ class TranslationManager @Inject constructor(
                 sourceLang to targetLang
             }
             TranslationMode.BIDIRECTIONAL -> {
-                // Auto-detect which language was spoken
-                val detected = detectLanguage(text)
+                // Auto-detect via Yandex API, fallback to Unicode heuristics
+                val detected = detectLanguageApi(text)
                 if (detected == sourceLang) {
                     sourceLang to targetLang
                 } else {
@@ -207,9 +208,34 @@ class TranslationManager @Inject constructor(
     }
 
     /**
-     * Detect the dominant language in a text string.
+     * Определяет язык текста через Yandex Translate API (detectLanguage).
+     * Fallback: Unicode script heuristics (кириллица vs латиница).
      */
-    private fun detectLanguage(text: String): String {
+    private suspend fun detectLanguageApi(text: String): String {
+        val yandexKey = prefs.yandexApiKey.first()
+        if (yandexKey.isNotBlank()) {
+            try {
+                val response = yandexTranslate.detectLanguage(
+                    auth = "Api-Key $yandexKey",
+                    request = YandexDetectRequest(
+                        text = text,
+                        languageCodeHints = listOf(sourceLang, targetLang)
+                    )
+                )
+                if (response.languageCode.isNotBlank()) {
+                    return response.languageCode
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Yandex detectLanguage failed, using heuristics", e)
+            }
+        }
+        return detectLanguageHeuristic(text)
+    }
+
+    /**
+     * Fallback: определение языка по Unicode script (кириллица / латиница).
+     */
+    private fun detectLanguageHeuristic(text: String): String {
         val cyrillicCount = CYRILLIC_REGEX.findAll(text).count()
         val latinCount = LATIN_REGEX.findAll(text).count()
         val total = cyrillicCount + latinCount
@@ -219,8 +245,8 @@ class TranslationManager @Inject constructor(
         val cyrillicRatio = cyrillicCount.toFloat() / total
 
         return when {
-            cyrillicRatio > 0.5f -> "ru"
-            else -> "en"
+            cyrillicRatio > 0.5f -> sourceLang
+            else -> targetLang
         }
     }
 

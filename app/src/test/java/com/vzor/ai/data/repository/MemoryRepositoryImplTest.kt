@@ -88,6 +88,102 @@ class MemoryRepositoryImplTest {
         coVerify { dao.getTopFacts(5) }
     }
 
+    // --- LRU eviction verification ---
+
+    @Test
+    fun `cleanup evicts lowest importance facts first`() = runTest {
+        // 5 facts: importance 5, 4, 3, 2, 1 — keep top 3
+        val topFacts = listOf(entity(1, 5), entity(2, 4), entity(3, 3))
+        val lowFacts = listOf(entity(4, 2), entity(5, 1))
+        val allFacts = topFacts + lowFacts
+
+        coEvery { dao.getCount() } returns 5
+        coEvery { dao.getTopFacts(3) } returns topFacts
+        coEvery { dao.getAll() } returns allFacts
+
+        repo.cleanup(3)
+
+        // Low importance facts should be evicted
+        coVerify { dao.deleteById(4) }
+        coVerify { dao.deleteById(5) }
+        // High importance facts should be preserved
+        coVerify(exactly = 0) { dao.deleteById(1) }
+        coVerify(exactly = 0) { dao.deleteById(2) }
+        coVerify(exactly = 0) { dao.deleteById(3) }
+    }
+
+    @Test
+    fun `cleanup handles exact limit boundary`() = runTest {
+        coEvery { dao.getCount() } returns 100
+
+        val topFacts = (1L..100L).map { entity(it, (it % 5 + 1).toInt()) }
+        coEvery { dao.getTopFacts(100) } returns topFacts
+        coEvery { dao.getAll() } returns topFacts
+
+        repo.cleanup(100)
+
+        // All facts are in topFacts set — nothing deleted
+        coVerify(exactly = 0) { dao.deleteById(any()) }
+    }
+
+    @Test
+    fun `cleanup with maxFacts=0 deletes everything`() = runTest {
+        val allFacts = listOf(entity(1, 5), entity(2, 3))
+
+        coEvery { dao.getCount() } returns 2
+        coEvery { dao.getTopFacts(0) } returns emptyList()
+        coEvery { dao.getAll() } returns allFacts
+
+        repo.cleanup(0)
+
+        coVerify { dao.deleteById(1) }
+        coVerify { dao.deleteById(2) }
+    }
+
+    @Test
+    fun `searchFacts respects limit parameter`() = runTest {
+        val entities = (1L..10L).map { entity(it) }
+        coEvery { dao.searchByKeyword("test") } returns entities
+
+        val result = repo.searchFacts("test", 3)
+
+        assertEquals(3, result.size)
+        // Only first 3 should have access time updated
+        coVerify(exactly = 3) { dao.updateAccessTime(any(), any()) }
+    }
+
+    @Test
+    fun `searchFacts returns empty for no matches`() = runTest {
+        coEvery { dao.searchByKeyword("nonexistent") } returns emptyList()
+
+        val result = repo.searchFacts("nonexistent", 10)
+
+        assertTrue(result.isEmpty())
+        coVerify(exactly = 0) { dao.updateAccessTime(any(), any()) }
+    }
+
+    @Test
+    fun `saveFact stores correct fields`() = runTest {
+        val entitySlot = slot<MemoryFactEntity>()
+        coEvery { dao.insert(capture(entitySlot)) } returns 42L
+
+        val id = repo.saveFact("Парковка на Ленина 15", "LOCATION", 4)
+
+        assertEquals(42L, id)
+        assertEquals("Парковка на Ленина 15", entitySlot.captured.fact)
+        assertEquals("LOCATION", entitySlot.captured.category)
+        assertEquals(4, entitySlot.captured.importance)
+        assertEquals(0, entitySlot.captured.accessCount)
+        assertTrue(entitySlot.captured.createdAt > 0)
+        assertEquals(entitySlot.captured.createdAt, entitySlot.captured.lastAccessedAt)
+    }
+
+    @Test
+    fun `deleteFact delegates to dao`() = runTest {
+        repo.deleteFact(42)
+        coVerify { dao.deleteById(42) }
+    }
+
     private fun entity(id: Long, importance: Int = 3) = MemoryFactEntity(
         id = id,
         fact = "fact$id",

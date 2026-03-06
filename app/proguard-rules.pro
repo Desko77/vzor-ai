@@ -15,8 +15,10 @@
 -keep class com.vzor.ai.data.remote.**Chunk { *; }
 -keep class com.vzor.ai.data.remote.**Result { *; }
 -keep @com.squareup.moshi.JsonClass class * { *; }
--keepclassmembers class * {
+-keepclassmembers class com.vzor.ai.** {
     @com.squareup.moshi.Json <fields>;
+}
+-keepclassmembers class * {
     @com.squareup.moshi.FromJson <methods>;
     @com.squareup.moshi.ToJson <methods>;
 }
@@ -75,6 +77,24 @@
 # --- AndroidX Security Crypto (EncryptedSharedPreferences) ---
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
+
+# --- SQLCipher ---
+-keep class net.zetetic.database.** { *; }
+-dontwarn net.zetetic.database.**
+-keep class net.sqlcipher.** { *; }
+-dontwarn net.sqlcipher.**
+
+# --- MediaPipe ---
+-keep class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+
+# --- ML Kit ---
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
+# --- Meta Wearables DAT SDK ---
+-keep class com.meta.wearable.** { *; }
+-dontwarn com.meta.wearable.**
 
 # --- Vzor domain models ---
 -keep class com.vzor.ai.domain.model.** { *; }
