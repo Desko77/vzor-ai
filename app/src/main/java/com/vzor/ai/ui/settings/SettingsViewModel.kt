@@ -80,16 +80,14 @@ class SettingsViewModel @Inject constructor(
                 prefs.tavilyApiKey,
                 prefs.developerMode
             ) { glmKey, localHost, tavilyKey, devMode ->
-                arrayOf(glmKey, localHost, tavilyKey, devMode)
-            }.collect { values ->
-                _uiState.update {
-                    it.copy(
-                        glmApiKey = values[0] as String,
-                        localAiHost = values[1] as String,
-                        tavilyApiKey = values[2] as String,
-                        developerMode = values[3] as Boolean
-                    )
-                }
+                _uiState.value.copy(
+                    glmApiKey = glmKey,
+                    localAiHost = localHost,
+                    tavilyApiKey = tavilyKey,
+                    developerMode = devMode
+                )
+            }.collect { partial ->
+                _uiState.update { partial }
             }
         }
     }

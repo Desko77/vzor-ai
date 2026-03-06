@@ -32,7 +32,8 @@ interface OpenAiApiService {
 data class OpenAiChatRequest(
     val model: String = "gpt-4o",
     val messages: List<OpenAiMessage>,
-    @Json(name = "max_tokens") val maxTokens: Int = 4096
+    @Json(name = "max_tokens") val maxTokens: Int = 4096,
+    val stream: Boolean = false
 )
 
 @JsonClass(generateAdapter = true)

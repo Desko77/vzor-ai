@@ -21,7 +21,8 @@ data class ClaudeRequest(
     val model: String = "claude-sonnet-4-20250514",
     @Json(name = "max_tokens") val maxTokens: Int = 4096,
     val system: String? = null,
-    val messages: List<ClaudeMessage>
+    val messages: List<ClaudeMessage>,
+    val stream: Boolean = false
 )
 
 @JsonClass(generateAdapter = true)

@@ -59,6 +59,7 @@ class PreferencesManager @Inject constructor(
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system_prompt")
         private val KEY_LOCAL_AI_HOST = stringPreferencesKey("local_ai_host")
         private val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        private val KEY_HOME_SSID = stringPreferencesKey("home_ssid")
 
         // Ключи для EncryptedSharedPreferences (API keys)
         private const val ENCRYPTED_GEMINI_KEY = "gemini_api_key"
@@ -95,6 +96,11 @@ class PreferencesManager @Inject constructor(
         prefs[KEY_DEVELOPER_MODE] ?: false
     }
 
+    /** SSID домашней Wi-Fi сети (для автопереключения на локальный AI). */
+    val homeSsid: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_HOME_SSID] ?: ""
+    }
+
     suspend fun setAiProvider(provider: AiProvider) {
         dataStore.edit { it[KEY_AI_PROVIDER] = provider.name }
     }
@@ -117,6 +123,10 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setDeveloperMode(enabled: Boolean) {
         dataStore.edit { it[KEY_DEVELOPER_MODE] = enabled }
+    }
+
+    suspend fun setHomeSsid(ssid: String) {
+        dataStore.edit { it[KEY_HOME_SSID] = ssid }
     }
 
     // --- API keys (EncryptedSharedPreferences, чувствительные) ---
