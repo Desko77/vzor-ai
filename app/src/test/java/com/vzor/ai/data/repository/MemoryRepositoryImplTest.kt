@@ -22,32 +22,21 @@ class MemoryRepositoryImplTest {
     }
 
     @Test
-    fun `cleanup deletes excess facts when over limit`() = runTest {
-        val topFacts = listOf(entity(1, 5), entity(2, 4), entity(3, 3))
-        val allFacts = topFacts + listOf(entity(4, 1), entity(5, 1))
-
-        coEvery { dao.getCount() } returns 5
-        coEvery { dao.getTopFacts(3) } returns topFacts
-        coEvery { dao.getAll() } returns allFacts
+    fun `cleanup delegates to atomic deleteExceptTop`() = runTest {
+        coEvery { dao.deleteExceptTop(3) } returns 2
 
         repo.cleanup(3)
 
-        coVerify { dao.deleteById(4) }
-        coVerify { dao.deleteById(5) }
-        coVerify(exactly = 0) { dao.deleteById(1) }
-        coVerify(exactly = 0) { dao.deleteById(2) }
-        coVerify(exactly = 0) { dao.deleteById(3) }
+        coVerify { dao.deleteExceptTop(3) }
     }
 
     @Test
-    fun `cleanup is no-op when under limit`() = runTest {
-        coEvery { dao.getCount() } returns 3
+    fun `cleanup with large limit calls deleteExceptTop`() = runTest {
+        coEvery { dao.deleteExceptTop(100) } returns 0
 
-        repo.cleanup(5)
+        repo.cleanup(100)
 
-        coVerify(exactly = 0) { dao.getTopFacts(any()) }
-        coVerify(exactly = 0) { dao.getAll() }
-        coVerify(exactly = 0) { dao.deleteById(any()) }
+        coVerify { dao.deleteExceptTop(100) }
     }
 
     @Test

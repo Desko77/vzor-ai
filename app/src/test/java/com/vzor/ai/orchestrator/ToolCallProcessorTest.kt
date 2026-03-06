@@ -1,6 +1,6 @@
 package com.vzor.ai.orchestrator
 
-import com.vzor.ai.data.remote.StreamChunk
+import com.vzor.ai.domain.model.StreamChunk
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -114,16 +114,16 @@ class ToolCallProcessorTest {
     }
 
     @Test
-    fun `buildClaudeTools returns correct tool count`() {
+    fun `buildToolDefinitions returns correct tool count`() {
         coEvery { toolRegistry.toolDescriptions } returns listOf(
             ToolDescription("test.tool", "Test", mapOf("param" to "string: Test"))
         )
 
-        val tools = processor.buildClaudeTools()
+        val tools = processor.buildToolDefinitions()
 
         assertEquals(1, tools.size)
         assertEquals("test.tool", tools[0].name)
-        assertEquals("object", tools[0].inputSchema.type)
+        assertEquals(1, tools[0].parameters.size)
     }
 
     // --- Multi-turn tool loop ---

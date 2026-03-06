@@ -144,6 +144,7 @@ object DatabaseModule {
         return Room.databaseBuilder(context, AppDatabase::class.java, "vzor_db")
             .openHelperFactory(factory)
             .addMigrations(*AppDatabase.MIGRATIONS)
+            .fallbackToDestructiveMigration() // Безопасный fallback при несовместимой схеме (первая установка SQLCipher)
             .build()
     }
 

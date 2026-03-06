@@ -1,5 +1,6 @@
 package com.vzor.ai.data.remote
 
+import com.vzor.ai.domain.model.StreamChunk
 import org.junit.Assert.*
 import org.junit.Test
 

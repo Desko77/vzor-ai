@@ -6,6 +6,9 @@ import com.vzor.ai.data.remote.*
 import com.vzor.ai.domain.model.AiProvider
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
+import com.vzor.ai.domain.model.StreamChunk
+import com.vzor.ai.domain.model.ToolDefinition
+import com.vzor.ai.domain.model.ToolParamType
 import com.vzor.ai.domain.repository.AiRepository
 import com.vzor.ai.orchestrator.ToolCallWithResult
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +43,112 @@ class AiRepositoryImpl @Inject constructor(
         }
     }
 
+    // ==================== Shared message builders ====================
+
+    /**
+     * Конвертирует Message → ClaudeMessage (с поддержкой изображений).
+     * Вызывается из streamClaude, streamClaudeWithTools, streamToolContinuation, sendClaude.
+     */
+    private fun buildClaudeMessages(messages: List<Message>): List<ClaudeMessage> {
+        return messages.filter { it.role != MessageRole.SYSTEM }.map { msg ->
+            if (msg.imageData != null) {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = listOf(
+                        ClaudeContentBlock(
+                            type = "image",
+                            source = ClaudeImageSource(
+                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                            )
+                        ),
+                        ClaudeContentBlock(type = "text", text = msg.content)
+                    )
+                )
+            } else {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = msg.content
+                )
+            }
+        }
+    }
+
+    private fun buildOpenAiMessages(messages: List<Message>): List<OpenAiMessage> {
+        return messages.map { msg ->
+            val role = when (msg.role) {
+                MessageRole.USER -> "user"
+                MessageRole.ASSISTANT -> "assistant"
+                MessageRole.SYSTEM -> "system"
+            }
+
+            if (msg.imageData != null && msg.role == MessageRole.USER) {
+                val base64 = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                OpenAiMessage(
+                    role = role,
+                    content = listOf(
+                        OpenAiContentPart(type = "text", text = msg.content),
+                        OpenAiContentPart(
+                            type = "image_url",
+                            imageUrl = OpenAiImageUrl("data:image/jpeg;base64,$base64")
+                        )
+                    )
+                )
+            } else {
+                OpenAiMessage(role = role, content = msg.content)
+            }
+        }
+    }
+
+    // ==================== ToolDefinition → provider-specific ====================
+
+    private fun toClaudeTools(tools: List<ToolDefinition>): List<ClaudeTool> {
+        return tools.map { def ->
+            ClaudeTool(
+                name = def.name,
+                description = def.description,
+                inputSchema = ClaudeToolSchema(
+                    properties = def.parameters.associate { p ->
+                        p.name to ClaudeToolProperty(
+                            type = when (p.type) {
+                                ToolParamType.INTEGER -> "integer"
+                                ToolParamType.BOOLEAN -> "boolean"
+                                ToolParamType.STRING -> "string"
+                            },
+                            description = p.description
+                        )
+                    },
+                    required = def.parameters.filter { it.required }.map { it.name }
+                )
+            )
+        }
+    }
+
+    private fun toOpenAiTools(tools: List<ToolDefinition>): List<OpenAiToolDef> {
+        return tools.map { def ->
+            OpenAiToolDef(
+                function = OpenAiFunctionDef(
+                    name = def.name,
+                    description = def.description,
+                    parameters = OpenAiFunctionParams(
+                        properties = def.parameters.associate { p ->
+                            p.name to OpenAiFunctionProp(
+                                type = when (p.type) {
+                                    ToolParamType.INTEGER -> "integer"
+                                    ToolParamType.BOOLEAN -> "boolean"
+                                    ToolParamType.STRING -> "string"
+                                },
+                                description = p.description
+                            )
+                        },
+                        required = def.parameters.filter { it.required }.map { it.name }
+                    )
+                )
+            )
+        }
+    }
+
+    // ==================== Public API ====================
+
     override suspend fun sendMessage(messages: List<Message>): Result<String> {
         return when (prefs.aiProvider.first()) {
             AiProvider.GEMINI -> getGeminiService().sendMessage(messages)
@@ -53,7 +162,7 @@ class AiRepositoryImpl @Inject constructor(
 
     override fun streamWithTools(
         messages: List<Message>,
-        tools: List<ClaudeTool>
+        tools: List<ToolDefinition>
     ): Flow<StreamChunk> = flow {
         when (prefs.aiProvider.first()) {
             AiProvider.CLAUDE -> {
@@ -63,90 +172,24 @@ class AiRepositoryImpl @Inject constructor(
                 streamOpenAiWithTools(messages, tools).collect { emit(it) }
             }
             else -> {
-                // Для остальных провайдеров — оборачиваем текстовый стрим в StreamChunk.Text
                 streamMessage(messages).collect { emit(StreamChunk.Text(it)) }
                 emit(StreamChunk.Done("end_turn"))
             }
         }
     }
 
-    private suspend fun streamClaudeWithTools(
-        messages: List<Message>,
-        tools: List<ClaudeTool>
-    ): Flow<StreamChunk> {
-        val apiKey = prefs.claudeApiKey.first()
-        require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
-
-        val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
-        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
-
-        val claudeMessages = chatMessages.map { msg ->
-            if (msg.imageData != null) {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = listOf(
-                        ClaudeContentBlock(
-                            type = "image",
-                            source = ClaudeImageSource(
-                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
-                            )
-                        ),
-                        ClaudeContentBlock(type = "text", text = msg.content)
-                    )
-                )
-            } else {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = msg.content
-                )
-            }
-        }
-
-        return claudeStreamingClient.streamChunks(
-            apiKey = apiKey,
-            request = ClaudeRequest(
-                system = systemPrompt,
-                messages = claudeMessages,
-                tools = tools.ifEmpty { null }
-            )
-        )
-    }
-
     override fun streamToolContinuation(
         messages: List<Message>,
-        tools: List<ClaudeTool>,
+        tools: List<ToolDefinition>,
         toolResults: List<ToolCallWithResult>
     ): Flow<StreamChunk> = flow {
         val apiKey = prefs.claudeApiKey.first()
         require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
 
         val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
-        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
+        val claudeMessages = buildClaudeMessages(messages).toMutableList()
 
-        // Построить Claude messages + tool_use (assistant) + tool_result (user)
-        val claudeMessages = chatMessages.map { msg ->
-            if (msg.imageData != null) {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = listOf(
-                        ClaudeContentBlock(
-                            type = "image",
-                            source = ClaudeImageSource(
-                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
-                            )
-                        ),
-                        ClaudeContentBlock(type = "text", text = msg.content)
-                    )
-                )
-            } else {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = msg.content
-                )
-            }
-        }.toMutableList()
-
-        // Добавить assistant message с tool_use блоками
+        // assistant message с tool_use блоками
         val toolUseBlocks = toolResults.map { tr ->
             mapOf(
                 "type" to "tool_use",
@@ -157,7 +200,7 @@ class AiRepositoryImpl @Inject constructor(
         }
         claudeMessages.add(ClaudeMessage(role = "assistant", content = toolUseBlocks))
 
-        // Добавить user message с tool_result блоками
+        // user message с tool_result блоками
         val toolResultBlocks = toolResults.map { tr ->
             mapOf(
                 "type" to "tool_result",
@@ -167,46 +210,15 @@ class AiRepositoryImpl @Inject constructor(
         }
         claudeMessages.add(ClaudeMessage(role = "user", content = toolResultBlocks))
 
+        val claudeTools = toClaudeTools(tools)
         claudeStreamingClient.streamChunks(
             apiKey = apiKey,
             request = ClaudeRequest(
                 system = systemPrompt,
                 messages = claudeMessages,
-                tools = tools.ifEmpty { null }
+                tools = claudeTools.ifEmpty { null }
             )
         ).collect { emit(it) }
-    }
-
-    private suspend fun streamOpenAiWithTools(
-        messages: List<Message>,
-        claudeTools: List<ClaudeTool>
-    ): Flow<StreamChunk> {
-        val apiKey = prefs.openAiApiKey.first()
-        require(apiKey.isNotBlank()) { "API ключ OpenAI не указан" }
-
-        // Конвертируем Claude tool формат → OpenAI tool формат
-        val openAiTools = claudeTools.map { ct ->
-            OpenAiToolDef(
-                function = OpenAiFunctionDef(
-                    name = ct.name,
-                    description = ct.description,
-                    parameters = OpenAiFunctionParams(
-                        properties = ct.inputSchema.properties.mapValues { (_, prop) ->
-                            OpenAiFunctionProp(type = prop.type, description = prop.description)
-                        },
-                        required = ct.inputSchema.required
-                    )
-                )
-            )
-        }
-
-        return openAiStreamingClient.streamChunks(
-            apiKey = apiKey,
-            request = OpenAiChatRequest(
-                messages = buildOpenAiMessages(messages),
-                tools = openAiTools.ifEmpty { null }
-            )
-        )
     }
 
     override fun streamMessage(messages: List<Message>): Flow<String> = flow {
@@ -239,38 +251,54 @@ class AiRepositoryImpl @Inject constructor(
         }
     }
 
+    // ==================== Provider-specific streaming ====================
+
+    private suspend fun streamClaudeWithTools(
+        messages: List<Message>,
+        tools: List<ToolDefinition>
+    ): Flow<StreamChunk> {
+        val apiKey = prefs.claudeApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
+
+        val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
+        val claudeTools = toClaudeTools(tools)
+
+        return claudeStreamingClient.streamChunks(
+            apiKey = apiKey,
+            request = ClaudeRequest(
+                system = systemPrompt,
+                messages = buildClaudeMessages(messages),
+                tools = claudeTools.ifEmpty { null }
+            )
+        )
+    }
+
+    private suspend fun streamOpenAiWithTools(
+        messages: List<Message>,
+        tools: List<ToolDefinition>
+    ): Flow<StreamChunk> {
+        val apiKey = prefs.openAiApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ OpenAI не указан" }
+
+        val openAiTools = toOpenAiTools(tools)
+
+        return openAiStreamingClient.streamChunks(
+            apiKey = apiKey,
+            request = OpenAiChatRequest(
+                messages = buildOpenAiMessages(messages),
+                tools = openAiTools.ifEmpty { null }
+            )
+        )
+    }
+
     private suspend fun streamClaude(messages: List<Message>): Flow<String> {
         val apiKey = prefs.claudeApiKey.first()
         require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
 
         val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
-        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
-
-        val claudeMessages = chatMessages.map { msg ->
-            if (msg.imageData != null) {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = listOf(
-                        ClaudeContentBlock(
-                            type = "image",
-                            source = ClaudeImageSource(
-                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
-                            )
-                        ),
-                        ClaudeContentBlock(type = "text", text = msg.content)
-                    )
-                )
-            } else {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = msg.content
-                )
-            }
-        }
-
         return claudeStreamingClient.stream(
             apiKey = apiKey,
-            request = ClaudeRequest(system = systemPrompt, messages = claudeMessages)
+            request = ClaudeRequest(system = systemPrompt, messages = buildClaudeMessages(messages))
         )
     }
 
@@ -292,67 +320,16 @@ class AiRepositoryImpl @Inject constructor(
         )
     }
 
-    private fun buildOpenAiMessages(messages: List<Message>): List<OpenAiMessage> {
-        return messages.map { msg ->
-            val role = when (msg.role) {
-                MessageRole.USER -> "user"
-                MessageRole.ASSISTANT -> "assistant"
-                MessageRole.SYSTEM -> "system"
-            }
-
-            if (msg.imageData != null && msg.role == MessageRole.USER) {
-                val base64 = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
-                OpenAiMessage(
-                    role = role,
-                    content = listOf(
-                        OpenAiContentPart(type = "text", text = msg.content),
-                        OpenAiContentPart(
-                            type = "image_url",
-                            imageUrl = OpenAiImageUrl("data:image/jpeg;base64,$base64")
-                        )
-                    )
-                )
-            } else {
-                OpenAiMessage(role = role, content = msg.content)
-            }
-        }
-    }
+    // ==================== Non-streaming send ====================
 
     private suspend fun sendClaude(messages: List<Message>): Result<String> = runCatching {
         val apiKey = prefs.claudeApiKey.first()
         require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
 
         val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
-        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
-
-        val claudeMessages = chatMessages.map { msg ->
-            if (msg.imageData != null) {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = listOf(
-                        ClaudeContentBlock(
-                            type = "image",
-                            source = ClaudeImageSource(
-                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
-                            )
-                        ),
-                        ClaudeContentBlock(type = "text", text = msg.content)
-                    )
-                )
-            } else {
-                ClaudeMessage(
-                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
-                    content = msg.content
-                )
-            }
-        }
-
         val response = claudeApi.sendMessage(
             apiKey = apiKey,
-            request = ClaudeRequest(
-                system = systemPrompt,
-                messages = claudeMessages
-            )
+            request = ClaudeRequest(system = systemPrompt, messages = buildClaudeMessages(messages))
         )
 
         response.content.firstOrNull { it.type == "text" }?.text
@@ -382,7 +359,6 @@ class AiRepositoryImpl @Inject constructor(
     }
 
     private suspend fun sendOllama(messages: List<Message>): Result<String> = runCatching {
-        // Update host from preferences if overridden
         val hostOverride = prefs.localAiHostOverride.first()
         if (hostOverride.isNotBlank()) {
             ollamaService.updateHost(hostOverride)
