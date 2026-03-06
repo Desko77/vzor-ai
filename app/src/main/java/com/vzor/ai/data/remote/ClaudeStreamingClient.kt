@@ -1,5 +1,6 @@
 package com.vzor.ai.data.remote
 
+import android.util.Log
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,7 @@ class ClaudeStreamingClient @Inject constructor(
     private val moshi: Moshi
 ) {
     companion object {
+        private const val TAG = "ClaudeStreaming"
         private const val BASE_URL = "https://api.anthropic.com/v1/messages"
         private const val ANTHROPIC_VERSION = "2023-06-01"
     }
@@ -80,6 +82,9 @@ class ClaudeStreamingClient @Inject constructor(
                         // Начало нового content block — может быть text или tool_use
                         val blockType = extractString(data, listOf("content_block", "type"))
                         if (blockType == "tool_use") {
+                            if (currentToolId != null) {
+                                Log.w(TAG, "New tool_use block started before previous was closed: $currentToolId")
+                            }
                             currentToolId = extractString(data, listOf("content_block", "id"))
                             currentToolName = extractString(data, listOf("content_block", "name"))
                             toolInputBuffer.clear()
@@ -177,7 +182,8 @@ class ClaudeStreamingClient @Inject constructor(
                 current = (current as? Map<String, Any>)?.get(key) ?: return null
             }
             current as? String
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "JSON parse error for path $path", e)
             null
         }
     }
@@ -193,7 +199,8 @@ class ClaudeStreamingClient @Inject constructor(
                 Map::class.java
             ).fromJson(json) ?: return emptyMap()
             map.mapValues { it.value.toString() }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "Tool arguments parse error", e)
             emptyMap()
         }
     }

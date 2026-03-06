@@ -12,13 +12,9 @@ import javax.inject.Singleton
 /**
  * ToolCallProcessor — обрабатывает tool calls из LLM стриминга.
  *
- * Цикл tool use:
- * 1. LLM отвечает с tool_use → парсим StreamChunk.ToolCall
- * 2. Выполняем инструмент через ToolRegistry
- * 3. Отправляем tool_result обратно LLM
- * 4. LLM генерирует финальный текстовый ответ
- *
- * Максимум 5 итераций tool calls за один запрос (защита от зацикливания).
+ * Текущая реализация (v1): tool results инлайнятся в текстовый стрим.
+ * TODO: v2 — цикл tool use: выполнить tool → отправить tool_result обратно LLM →
+ *       LLM генерирует финальный ответ на основе результатов.
  */
 @Singleton
 class ToolCallProcessor @Inject constructor(
@@ -26,7 +22,6 @@ class ToolCallProcessor @Inject constructor(
 ) {
     companion object {
         private const val TAG = "ToolCallProcessor"
-        private const val MAX_TOOL_ITERATIONS = 5
     }
 
     /**
