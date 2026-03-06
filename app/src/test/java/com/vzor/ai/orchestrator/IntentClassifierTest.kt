@@ -277,4 +277,96 @@ class IntentClassifierTest {
         assertEquals(result1.type, result2.type)
         assertEquals(result1.confidence, result2.confidence, 0.001f)
     }
+
+    // --- UC#11: Capture Photo ---
+
+    @Test
+    fun `classify capture photo - сфотографируй`() {
+        val result = classifier.classify("Сфотографируй")
+        assertEquals(IntentType.CAPTURE_PHOTO, result.type)
+        assertTrue(result.requiresVision)
+    }
+
+    @Test
+    fun `classify capture photo - сделай фото`() {
+        val result = classifier.classify("Сделай фото")
+        assertEquals(IntentType.CAPTURE_PHOTO, result.type)
+    }
+
+    @Test
+    fun `classify capture photo - сделай снимок`() {
+        val result = classifier.classify("Сделай снимок этого")
+        assertEquals(IntentType.CAPTURE_PHOTO, result.type)
+    }
+
+    @Test
+    fun `classify capture photo - фотка`() {
+        val result = classifier.classify("Фотка!")
+        assertEquals(IntentType.CAPTURE_PHOTO, result.type)
+    }
+
+    @Test
+    fun `fuzzy capture photo - сфатографируй (typo)`() {
+        val result = classifier.classify("Сфатографируй это")
+        assertEquals(IntentType.CAPTURE_PHOTO, result.type)
+    }
+
+    // --- UC#6: Live Commentary ---
+
+    @Test
+    fun `classify live commentary - включи комментарий`() {
+        val result = classifier.classify("Включи комментарий")
+        assertEquals(IntentType.LIVE_COMMENTARY, result.type)
+        assertTrue(result.requiresVision)
+    }
+
+    @Test
+    fun `classify live commentary - режим наблюдения`() {
+        val result = classifier.classify("Режим наблюдения")
+        assertEquals(IntentType.LIVE_COMMENTARY, result.type)
+    }
+
+    @Test
+    fun `classify live commentary - выключи комментарий`() {
+        val result = classifier.classify("Выключи комментарий")
+        assertEquals(IntentType.LIVE_COMMENTARY, result.type)
+    }
+
+    @Test
+    fun `classify live commentary - комментируй`() {
+        val result = classifier.classify("Комментируй что видишь")
+        assertEquals(IntentType.LIVE_COMMENTARY, result.type)
+    }
+
+    // --- UC#13: Conversation Focus ---
+
+    @Test
+    fun `classify conversation focus - режим фокуса`() {
+        val result = classifier.classify("Режим фокуса")
+        assertEquals(IntentType.CONVERSATION_FOCUS, result.type)
+    }
+
+    @Test
+    fun `classify conversation focus - слушай разговор`() {
+        val result = classifier.classify("Слушай разговор")
+        assertEquals(IntentType.CONVERSATION_FOCUS, result.type)
+    }
+
+    @Test
+    fun `classify conversation focus - саммари разговора`() {
+        val result = classifier.classify("Саммари разговора")
+        assertEquals(IntentType.CONVERSATION_FOCUS, result.type)
+    }
+
+    @Test
+    fun `classify conversation focus - ключевые моменты`() {
+        val result = classifier.classify("Ключевые моменты")
+        assertEquals(IntentType.CONVERSATION_FOCUS, result.type)
+    }
+
+    @Test
+    fun `classify conversation focus - выключи фокус`() {
+        val result = classifier.classify("Выключи фокус")
+        assertEquals(IntentType.CONVERSATION_FOCUS, result.type)
+    }
 }

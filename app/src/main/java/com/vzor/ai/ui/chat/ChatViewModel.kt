@@ -20,6 +20,8 @@ import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
 import com.vzor.ai.vision.SharedImageHandler
+import com.vzor.ai.vision.LiveCommentaryService
+import com.vzor.ai.orchestrator.ConversationFocusManager
 import com.vzor.ai.orchestrator.IntentClassifier
 import com.vzor.ai.orchestrator.VoiceOrchestrator
 import com.vzor.ai.speech.SttService
@@ -38,7 +40,9 @@ data class ChatUiState(
     val glassesState: GlassesState = GlassesState.DISCONNECTED,
     val voiceState: VoiceState = VoiceState.IDLE,
     val currentConversation: Conversation? = null,
-    val pendingAction: PendingAction? = null
+    val pendingAction: PendingAction? = null,
+    val isLiveCommentaryActive: Boolean = false,
+    val isConversationFocusActive: Boolean = false
 )
 
 @HiltViewModel
@@ -55,7 +59,9 @@ class ChatViewModel @Inject constructor(
     private val actionExecutor: ActionExecutor,
     private val intentClassifier: IntentClassifier,
     private val contextManager: ContextManager,
-    private val sharedImageHandler: SharedImageHandler
+    private val sharedImageHandler: SharedImageHandler,
+    private val liveCommentaryService: LiveCommentaryService,
+    private val conversationFocusManager: ConversationFocusManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -82,6 +88,18 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             sharedImageHandler.sharedImages.collect { imageBytes ->
                 sendImageMessage(imageBytes)
+            }
+        }
+        // Live commentary state
+        viewModelScope.launch {
+            liveCommentaryService.isActive.collect { active ->
+                _uiState.update { it.copy(isLiveCommentaryActive = active) }
+            }
+        }
+        // Conversation focus state
+        viewModelScope.launch {
+            conversationFocusManager.state.collect { focusState ->
+                _uiState.update { it.copy(isConversationFocusActive = focusState.isActive) }
             }
         }
     }
@@ -214,6 +232,23 @@ class ChatViewModel @Inject constructor(
      * Если требуется подтверждение — показывает диалог.
      */
     private suspend fun handleActionIntent(intent: VzorIntent, conversationId: String) {
+        // Специальные интенты обрабатываем напрямую
+        when (intent.type) {
+            IntentType.CAPTURE_PHOTO -> {
+                handleCapturePhotoIntent(conversationId)
+                return
+            }
+            IntentType.LIVE_COMMENTARY -> {
+                handleLiveCommentaryIntent(conversationId)
+                return
+            }
+            IntentType.CONVERSATION_FOCUS -> {
+                handleConversationFocusIntent(conversationId)
+                return
+            }
+            else -> { /* продолжаем стандартную обработку */ }
+        }
+
         if (actionConfirmation.requiresConfirmation(intent)) {
             voiceOrchestrator.onEvent(VoiceEvent.ConfirmRequired(
                 action = intent.type.name,
@@ -234,6 +269,59 @@ class ChatViewModel @Inject constructor(
 
         if (_uiState.value.glassesState == GlassesState.CONNECTED) {
             ttsManager.speak(result.message)
+        }
+    }
+
+    /** UC#11: Фото hands-free — голосовая команда «сфотографируй». */
+    private suspend fun handleCapturePhotoIntent(conversationId: String) {
+        if (_uiState.value.glassesState != GlassesState.CONNECTED) {
+            addAssistantMessage("Очки не подключены. Подключите для съёмки.", conversationId)
+            return
+        }
+        addAssistantMessage("Фотографирую...", conversationId)
+        val imageBytes = glassesManager.capturePhoto()
+        if (imageBytes != null) {
+            sendImageMessage(imageBytes, "Что ты видишь на этом фото? Опиши подробно на русском.")
+        } else {
+            addAssistantMessage("Не удалось сделать фото.", conversationId)
+        }
+    }
+
+    /** UC#6: Live AI commentary — включить/выключить режим комментария. */
+    private suspend fun handleLiveCommentaryIntent(conversationId: String) {
+        if (liveCommentaryService.isActive.value) {
+            liveCommentaryService.stop()
+            addAssistantMessage("Режим комментария выключен.", conversationId)
+        } else {
+            if (_uiState.value.glassesState != GlassesState.CONNECTED) {
+                addAssistantMessage("Очки не подключены. Подключите для режима комментария.", conversationId)
+                return
+            }
+            liveCommentaryService.start(
+                captureFrame = { glassesManager.capturePhoto() }
+            )
+            addAssistantMessage("Режим живого комментария включён. Скажите «выключи комментарий» для остановки.", conversationId)
+        }
+    }
+
+    /** UC#13: Conversation Focus — включить/выключить режим фокуса на разговоре. */
+    private suspend fun handleConversationFocusIntent(conversationId: String) {
+        if (conversationFocusManager.state.value.isActive) {
+            // Если уже активен — запросить саммари перед остановкой
+            val transcriptSize = conversationFocusManager.getTranscriptSize()
+            if (transcriptSize > 0) {
+                addAssistantMessage("Подготавливаю саммари разговора...", conversationId)
+                conversationFocusManager.requestSummary()
+            }
+            conversationFocusManager.stopFocus()
+            addAssistantMessage("Режим фокуса выключен.", conversationId)
+        } else {
+            conversationFocusManager.startFocus()
+            addAssistantMessage(
+                "Режим фокуса включён — слушаю разговор. " +
+                "Скажите «саммари разговора» или «ключевые моменты» для получения информации.",
+                conversationId
+            )
         }
     }
 
