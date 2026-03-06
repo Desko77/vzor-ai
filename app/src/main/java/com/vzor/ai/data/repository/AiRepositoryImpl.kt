@@ -19,6 +19,8 @@ class AiRepositoryImpl @Inject constructor(
     private val openAiApi: OpenAiApiService,
     private val glmApi: GlmApiService,
     private val ollamaService: OllamaService,
+    private val claudeStreamingClient: ClaudeStreamingClient,
+    private val openAiStreamingClient: OpenAiStreamingClient,
     private val prefs: PreferencesManager
 ) : AiRepository {
 
@@ -54,19 +56,13 @@ class AiRepositoryImpl @Inject constructor(
                 getGeminiService().streamMessage(messages).collect { emit(it) }
             }
             AiProvider.CLAUDE -> {
-                val result = sendClaude(messages)
-                result.onSuccess { emit(it) }
-                result.onFailure { throw it }
+                streamClaude(messages).collect { emit(it) }
             }
             AiProvider.OPENAI -> {
-                val result = sendOpenAi(messages)
-                result.onSuccess { emit(it) }
-                result.onFailure { throw it }
+                streamOpenAi(messages).collect { emit(it) }
             }
             AiProvider.GLM_5 -> {
-                val result = sendGlm(messages)
-                result.onSuccess { emit(it) }
-                result.onFailure { throw it }
+                streamGlm(messages).collect { emit(it) }
             }
             AiProvider.LOCAL_QWEN, AiProvider.OFFLINE_QWEN -> {
                 val ollamaMessages = messages.map { msg ->
@@ -80,6 +76,85 @@ class AiRepositoryImpl @Inject constructor(
                     )
                 }
                 ollamaService.streamMessage(messages = ollamaMessages).collect { emit(it) }
+            }
+        }
+    }
+
+    private suspend fun streamClaude(messages: List<Message>): Flow<String> {
+        val apiKey = prefs.claudeApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
+
+        val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
+        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
+
+        val claudeMessages = chatMessages.map { msg ->
+            if (msg.imageData != null) {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = listOf(
+                        ClaudeContentBlock(
+                            type = "image",
+                            source = ClaudeImageSource(
+                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                            )
+                        ),
+                        ClaudeContentBlock(type = "text", text = msg.content)
+                    )
+                )
+            } else {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = msg.content
+                )
+            }
+        }
+
+        return claudeStreamingClient.stream(
+            apiKey = apiKey,
+            request = ClaudeRequest(system = systemPrompt, messages = claudeMessages)
+        )
+    }
+
+    private suspend fun streamOpenAi(messages: List<Message>): Flow<String> {
+        val apiKey = prefs.openAiApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ OpenAI не указан" }
+        return openAiStreamingClient.stream(
+            apiKey = apiKey,
+            request = OpenAiChatRequest(messages = buildOpenAiMessages(messages))
+        )
+    }
+
+    private suspend fun streamGlm(messages: List<Message>): Flow<String> {
+        val apiKey = prefs.glmApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ GLM-5 не указан" }
+        return openAiStreamingClient.streamGlm(
+            apiKey = apiKey,
+            request = OpenAiChatRequest(model = "glm-5", messages = buildOpenAiMessages(messages))
+        )
+    }
+
+    private fun buildOpenAiMessages(messages: List<Message>): List<OpenAiMessage> {
+        return messages.map { msg ->
+            val role = when (msg.role) {
+                MessageRole.USER -> "user"
+                MessageRole.ASSISTANT -> "assistant"
+                MessageRole.SYSTEM -> "system"
+            }
+
+            if (msg.imageData != null && msg.role == MessageRole.USER) {
+                val base64 = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                OpenAiMessage(
+                    role = role,
+                    content = listOf(
+                        OpenAiContentPart(type = "text", text = msg.content),
+                        OpenAiContentPart(
+                            type = "image_url",
+                            imageUrl = OpenAiImageUrl("data:image/jpeg;base64,$base64")
+                        )
+                    )
+                )
+            } else {
+                OpenAiMessage(role = role, content = msg.content)
             }
         }
     }
@@ -173,33 +248,9 @@ class AiRepositoryImpl @Inject constructor(
         val apiKey = prefs.openAiApiKey.first()
         require(apiKey.isNotBlank()) { "API ключ OpenAI не указан" }
 
-        val openAiMessages = messages.map { msg ->
-            val role = when (msg.role) {
-                MessageRole.USER -> "user"
-                MessageRole.ASSISTANT -> "assistant"
-                MessageRole.SYSTEM -> "system"
-            }
-
-            if (msg.imageData != null && msg.role == MessageRole.USER) {
-                val base64 = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
-                OpenAiMessage(
-                    role = role,
-                    content = listOf(
-                        OpenAiContentPart(type = "text", text = msg.content),
-                        OpenAiContentPart(
-                            type = "image_url",
-                            imageUrl = OpenAiImageUrl("data:image/jpeg;base64,$base64")
-                        )
-                    )
-                )
-            } else {
-                OpenAiMessage(role = role, content = msg.content)
-            }
-        }
-
         val response = openAiApi.chatCompletion(
             auth = "Bearer $apiKey",
-            request = OpenAiChatRequest(messages = openAiMessages)
+            request = OpenAiChatRequest(messages = buildOpenAiMessages(messages))
         )
 
         response.choices.firstOrNull()?.message?.content
