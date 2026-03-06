@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.PointF
 import android.graphics.RectF
+import android.util.Log
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.facedetector.FaceDetector
@@ -23,13 +24,14 @@ class MediaPipeVisionProcessor @Inject constructor(
 ) {
 
     companion object {
+        private const val TAG = "MediaPipeVision"
         private const val FACE_MODEL = "blaze_face_short_range.tflite"
         private const val OBJECT_MODEL = "efficientdet_lite0.tflite"
         private const val MAX_RESULTS = 10
         private const val MIN_CONFIDENCE = 0.4f
     }
 
-    private val faceDetector: FaceDetector by lazy {
+    private val _faceDetector = lazy {
         val baseOptions = BaseOptions.builder()
             .setModelAssetPath(FACE_MODEL)
             .build()
@@ -39,8 +41,9 @@ class MediaPipeVisionProcessor @Inject constructor(
             .build()
         FaceDetector.createFromOptions(context, options)
     }
+    private val faceDetector: FaceDetector by _faceDetector
 
-    private val objectDetector: ObjectDetector by lazy {
+    private val _objectDetector = lazy {
         val baseOptions = BaseOptions.builder()
             .setModelAssetPath(OBJECT_MODEL)
             .build()
@@ -51,6 +54,7 @@ class MediaPipeVisionProcessor @Inject constructor(
             .build()
         ObjectDetector.createFromOptions(context, options)
     }
+    private val objectDetector: ObjectDetector by _objectDetector
 
     /**
      * Обнаруживает лица на изображении.
@@ -75,6 +79,7 @@ class MediaPipeVisionProcessor @Inject constructor(
                 )
             }
         } catch (e: Exception) {
+            Log.w(TAG, "Face detection failed", e)
             emptyList()
         }
     }
@@ -103,6 +108,7 @@ class MediaPipeVisionProcessor @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            Log.w(TAG, "Object detection failed", e)
             emptyList()
         }
     }
@@ -111,7 +117,19 @@ class MediaPipeVisionProcessor @Inject constructor(
      * Освобождает ресурсы детекторов.
      */
     fun release() {
-        try { faceDetector.close() } catch (_: Exception) {}
-        try { objectDetector.close() } catch (_: Exception) {}
+        if (_faceDetector.isInitialized()) {
+            try {
+                faceDetector.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to close faceDetector", e)
+            }
+        }
+        if (_objectDetector.isInitialized()) {
+            try {
+                objectDetector.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to close objectDetector", e)
+            }
+        }
     }
 }
