@@ -66,6 +66,9 @@ class ChatViewModel @Inject constructor(
     private val toolCallProcessor: ToolCallProcessor
 ) : ViewModel() {
 
+    /** Кешированные tool definitions — не меняются между сообщениями. */
+    private val cachedTools by lazy { toolCallProcessor.buildToolDefinitions() }
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -108,16 +111,21 @@ class ChatViewModel @Inject constructor(
 
     fun startNewConversation() {
         viewModelScope.launch {
-            val conversation = conversationRepository.createConversation("Новый диалог")
-            contextManager.clearSession()
-            _uiState.update {
-                it.copy(
-                    messages = emptyList(),
-                    currentConversation = conversation,
-                    error = null
-                )
-            }
+            createNewConversation()
         }
+    }
+
+    private suspend fun createNewConversation(): Conversation {
+        val conversation = conversationRepository.createConversation("Новый диалог")
+        contextManager.clearSession()
+        _uiState.update {
+            it.copy(
+                messages = emptyList(),
+                currentConversation = conversation,
+                error = null
+            )
+        }
+        return conversation
     }
 
     fun loadConversation(conversationId: String) {
@@ -136,10 +144,15 @@ class ChatViewModel @Inject constructor(
         val text = _uiState.value.currentInput.trim()
         if (text.isBlank()) return
 
-        val conversationId = _uiState.value.currentConversation?.id ?: run {
-            startNewConversation()
-            _uiState.value.currentConversation?.id ?: return
+        viewModelScope.launch {
+            val conversationId = _uiState.value.currentConversation?.id
+                ?: createNewConversation().id
+
+            sendMessageInternal(text, conversationId)
         }
+    }
+
+    private suspend fun sendMessageInternal(text: String, conversationId: String) {
 
         val userMessage = Message(
             role = MessageRole.USER,
@@ -156,86 +169,82 @@ class ChatViewModel @Inject constructor(
             )
         }
 
-        viewModelScope.launch {
-            conversationRepository.saveMessage(userMessage)
-            contextManager.addToSession(userMessage)
+        conversationRepository.saveMessage(userMessage)
+        contextManager.addToSession(userMessage)
 
-            // Классификация intent — если действие, выполняем без LLM
-            val intent = intentClassifier.classify(text)
-            if (intent.type != IntentType.GENERAL_QUESTION &&
-                intent.type != IntentType.UNKNOWN) {
-                handleActionIntent(intent, conversationId)
-                return@launch
-            }
+        // Классификация intent — если действие, выполняем без LLM
+        val intent = intentClassifier.classify(text)
+        if (intent.type != IntentType.GENERAL_QUESTION &&
+            intent.type != IntentType.UNKNOWN) {
+            handleActionIntent(intent, conversationId)
+            return
+        }
 
-            // Обычный LLM запрос с контекстом из ContextManager
-            val systemPrompt = prefs.systemPrompt.first()
-            val messagesForApi = buildList {
-                add(Message(role = MessageRole.SYSTEM, content = systemPrompt))
-                addAll(contextManager.getSessionContext())
-            }
+        // Обычный LLM запрос с контекстом из ContextManager
+        val systemPrompt = prefs.systemPrompt.first()
+        val messagesForApi = buildList {
+            add(Message(role = MessageRole.SYSTEM, content = systemPrompt))
+            addAll(contextManager.getSessionContext())
+        }
 
-            voiceOrchestrator.onEvent(VoiceEvent.IntentReady(
-                VzorIntent(type = IntentType.GENERAL_QUESTION, confidence = 1.0f)
-            ))
+        voiceOrchestrator.onEvent(VoiceEvent.IntentReady(
+            VzorIntent(type = IntentType.GENERAL_QUESTION, confidence = 1.0f)
+        ))
 
-            val responseBuilder = StringBuilder()
+        val responseBuilder = StringBuilder()
+        // Уникальный ID для текущего стрим-сообщения — предотвращает перезапись чужих сообщений
+        val streamMessageId = java.util.UUID.randomUUID().toString()
 
-            // Tool-augmented streaming с multi-turn loop:
-            // Claude получает описания инструментов, ToolCallProcessor
-            // перехватывает tool_use, выполняет, и шлёт tool_result обратно
-            val tools = toolCallProcessor.buildClaudeTools()
-            val chunksFlow = aiRepository.streamWithTools(messagesForApi, tools)
-            val textFlow = toolCallProcessor.processStreamMultiTurn(chunksFlow) { toolResults ->
-                // Continuation: отправить tool_result обратно LLM
-                aiRepository.streamToolContinuation(messagesForApi, tools, toolResults)
-            }
+        // Tool-augmented streaming с multi-turn loop
+        val chunksFlow = aiRepository.streamWithTools(messagesForApi, cachedTools)
+        val textFlow = toolCallProcessor.processStreamMultiTurn(chunksFlow) { toolResults ->
+            aiRepository.streamToolContinuation(messagesForApi, cachedTools, toolResults)
+        }
 
-            textFlow
-                .catch { e ->
-                    voiceOrchestrator.onEvent(VoiceEvent.ErrorOccurred(e))
-                    _uiState.update {
-                        it.copy(isLoading = false, error = e.message ?: "Ошибка")
-                    }
+        textFlow
+            .catch { e ->
+                voiceOrchestrator.onEvent(VoiceEvent.ErrorOccurred(e))
+                _uiState.update {
+                    it.copy(isLoading = false, error = e.message ?: "Ошибка")
                 }
-                .collect { chunk ->
-                    responseBuilder.append(chunk)
+            }
+            .collect { chunk ->
+                responseBuilder.append(chunk)
 
-                    // Streaming TTS: feed tokens during generation
-                    if (_uiState.value.glassesState == GlassesState.CONNECTED) {
-                        ttsManager.onToken(chunk)
-                    }
-
-                    val assistantMessage = Message(
-                        role = MessageRole.ASSISTANT,
-                        content = responseBuilder.toString(),
-                        conversationId = conversationId
-                    )
-
-                    _uiState.update { state ->
-                        val messages = state.messages.toMutableList()
-                        val existingIndex = messages.indexOfLast { it.role == MessageRole.ASSISTANT }
-                        if (existingIndex >= 0 && messages[existingIndex].conversationId == conversationId) {
-                            messages[existingIndex] = assistantMessage
-                        } else {
-                            messages.add(assistantMessage)
-                        }
-                        state.copy(messages = messages, isLoading = false)
-                    }
+                if (_uiState.value.glassesState == GlassesState.CONNECTED) {
+                    ttsManager.onToken(chunk)
                 }
 
-            // Flush remaining TTS buffer after streaming completes
-            if (_uiState.value.glassesState == GlassesState.CONNECTED) {
-                ttsManager.onStreamEnd()
-                voiceOrchestrator.onEvent(VoiceEvent.TtsComplete)
+                val assistantMessage = Message(
+                    id = streamMessageId,
+                    role = MessageRole.ASSISTANT,
+                    content = responseBuilder.toString(),
+                    conversationId = conversationId
+                )
+
+                _uiState.update { state ->
+                    val messages = state.messages.toMutableList()
+                    val existingIndex = messages.indexOfLast { it.id == streamMessageId }
+                    if (existingIndex >= 0) {
+                        messages[existingIndex] = assistantMessage
+                    } else {
+                        messages.add(assistantMessage)
+                    }
+                    state.copy(messages = messages, isLoading = false)
+                }
             }
 
-            // Save final assistant message + context
-            val finalMessage = _uiState.value.messages.lastOrNull { it.role == MessageRole.ASSISTANT }
-            if (finalMessage != null) {
-                conversationRepository.saveMessage(finalMessage)
-                contextManager.addToSession(finalMessage)
-            }
+        // Flush remaining TTS buffer
+        if (_uiState.value.glassesState == GlassesState.CONNECTED) {
+            ttsManager.onStreamEnd()
+            voiceOrchestrator.onEvent(VoiceEvent.TtsComplete)
+        }
+
+        // Save final assistant message + context
+        val finalMessage = _uiState.value.messages.lastOrNull { it.role == MessageRole.ASSISTANT }
+        if (finalMessage != null) {
+            conversationRepository.saveMessage(finalMessage)
+            contextManager.addToSession(finalMessage)
         }
     }
 

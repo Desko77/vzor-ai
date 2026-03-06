@@ -8,15 +8,17 @@ import android.util.Log
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.facedetector.FaceDetector
+import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizer
 import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetector
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * On-device face and object detection через MediaPipe Tasks Vision.
+ * On-device face, object and gesture detection через MediaPipe Tasks Vision.
  * Lazy-init: детекторы создаются при первом вызове.
- * Bundled models: blaze_face_short_range.tflite, efficientdet_lite0.tflite.
+ * Bundled models: blaze_face_short_range.tflite, efficientdet_lite0.tflite,
+ * gesture_recognizer.task.
  */
 @Singleton
 class MediaPipeVisionProcessor @Inject constructor(
@@ -27,8 +29,10 @@ class MediaPipeVisionProcessor @Inject constructor(
         private const val TAG = "MediaPipeVision"
         private const val FACE_MODEL = "blaze_face_short_range.tflite"
         private const val OBJECT_MODEL = "efficientdet_lite0.tflite"
+        private const val GESTURE_MODEL = "gesture_recognizer.task"
         private const val MAX_RESULTS = 10
         private const val MIN_CONFIDENCE = 0.4f
+        private const val GESTURE_MIN_CONFIDENCE = 0.5f
     }
 
     private val _faceDetector = lazy {
@@ -55,6 +59,20 @@ class MediaPipeVisionProcessor @Inject constructor(
         ObjectDetector.createFromOptions(context, options)
     }
     private val objectDetector: ObjectDetector by _objectDetector
+
+    private val _gestureRecognizer = lazy {
+        val baseOptions = BaseOptions.builder()
+            .setModelAssetPath(GESTURE_MODEL)
+            .build()
+        val options = GestureRecognizer.GestureRecognizerOptions.builder()
+            .setBaseOptions(baseOptions)
+            .setMinHandDetectionConfidence(GESTURE_MIN_CONFIDENCE)
+            .setMinHandPresenceConfidence(GESTURE_MIN_CONFIDENCE)
+            .setMinTrackingConfidence(GESTURE_MIN_CONFIDENCE)
+            .build()
+        GestureRecognizer.createFromOptions(context, options)
+    }
+    private val gestureRecognizer: GestureRecognizer by _gestureRecognizer
 
     /**
      * Обнаруживает лица на изображении.
@@ -114,6 +132,32 @@ class MediaPipeVisionProcessor @Inject constructor(
     }
 
     /**
+     * Обнаруживает жесты рук на изображении через MediaPipe GestureRecognizer.
+     * Поддерживаемые жесты: Closed_Fist, Open_Palm, Pointing_Up, Thumb_Down,
+     * Thumb_Up, Victory, ILoveYou, None.
+     *
+     * @return Список строк с именами обнаруженных жестов, или пустой список при ошибке.
+     */
+    fun detectGestures(imageBytes: ByteArray): List<String> {
+        return try {
+            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                ?: return emptyList()
+            val mpImage = BitmapImageBuilder(bitmap).build()
+            val result = gestureRecognizer.recognize(mpImage)
+
+            result.gestures().flatMap { gestureList ->
+                gestureList
+                    .filter { it.score() >= GESTURE_MIN_CONFIDENCE }
+                    .filter { it.categoryName() != "None" }
+                    .map { it.categoryName() ?: "unknown" }
+            }.distinct()
+        } catch (e: Exception) {
+            Log.w(TAG, "Gesture detection failed", e)
+            emptyList()
+        }
+    }
+
+    /**
      * Освобождает ресурсы детекторов.
      */
     fun release() {
@@ -129,6 +173,13 @@ class MediaPipeVisionProcessor @Inject constructor(
                 objectDetector.close()
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to close objectDetector", e)
+            }
+        }
+        if (_gestureRecognizer.isInitialized()) {
+            try {
+                gestureRecognizer.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to close gestureRecognizer", e)
             }
         }
     }

@@ -38,7 +38,8 @@ class SceneComposer @Inject constructor() {
         objects: List<DetectedObject>,
         ocrText: String?,
         description: String?,
-        faceCount: Int = 0
+        faceCount: Int = 0,
+        gestures: List<String> = emptyList()
     ): SceneData {
         val timestamp = System.currentTimeMillis()
         val stability = computeStability(objects, faceCount)
@@ -53,6 +54,7 @@ class SceneComposer @Inject constructor() {
             objects = objects,
             text = textList,
             faceCount = faceCount,
+            gestures = gestures,
             stability = stability,
             ttlMs = ttl
         )

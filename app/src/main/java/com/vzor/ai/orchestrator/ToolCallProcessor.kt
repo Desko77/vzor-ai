@@ -1,7 +1,10 @@
 package com.vzor.ai.orchestrator
 
 import android.util.Log
-import com.vzor.ai.data.remote.*
+import com.vzor.ai.domain.model.StreamChunk
+import com.vzor.ai.domain.model.ToolDefinition
+import com.vzor.ai.domain.model.ToolParameter
+import com.vzor.ai.domain.model.ToolParamType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
@@ -27,27 +30,22 @@ class ToolCallProcessor @Inject constructor(
     }
 
     /**
-     * Конвертирует ToolDescription в формат Claude API tools.
+     * Конвертирует ToolDescription → ToolDefinition (domain model).
+     * AiRepositoryImpl конвертирует ToolDefinition → ClaudeTool/OpenAiToolDef.
      */
-    fun buildClaudeTools(): List<ClaudeTool> {
+    fun buildToolDefinitions(): List<ToolDefinition> {
         return toolRegistry.toolDescriptions.map { desc ->
-            val properties = desc.parameters.mapValues { (_, typeDesc) ->
-                val type = when {
-                    typeDesc.startsWith("int") -> "integer"
-                    typeDesc.startsWith("bool") -> "boolean"
-                    else -> "string"
-                }
-                ClaudeToolProperty(type = type, description = typeDesc)
-            }
-            val required = desc.parameters.keys.toList()
-
-            ClaudeTool(
+            ToolDefinition(
                 name = desc.name,
                 description = desc.description,
-                inputSchema = ClaudeToolSchema(
-                    properties = properties,
-                    required = required
-                )
+                parameters = desc.parameters.map { (name, typeDesc) ->
+                    val type = when {
+                        typeDesc.startsWith("int") -> ToolParamType.INTEGER
+                        typeDesc.startsWith("bool") -> ToolParamType.BOOLEAN
+                        else -> ToolParamType.STRING
+                    }
+                    ToolParameter(name = name, type = type, description = typeDesc)
+                }
             )
         }
     }

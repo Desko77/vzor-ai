@@ -22,32 +22,21 @@ class MemoryRepositoryImplTest {
     }
 
     @Test
-    fun `cleanup deletes excess facts when over limit`() = runTest {
-        val topFacts = listOf(entity(1, 5), entity(2, 4), entity(3, 3))
-        val allFacts = topFacts + listOf(entity(4, 1), entity(5, 1))
-
-        coEvery { dao.getCount() } returns 5
-        coEvery { dao.getTopFacts(3) } returns topFacts
-        coEvery { dao.getAll() } returns allFacts
+    fun `cleanup delegates to atomic deleteExceptTop`() = runTest {
+        coEvery { dao.deleteExceptTop(3) } returns 2
 
         repo.cleanup(3)
 
-        coVerify { dao.deleteById(4) }
-        coVerify { dao.deleteById(5) }
-        coVerify(exactly = 0) { dao.deleteById(1) }
-        coVerify(exactly = 0) { dao.deleteById(2) }
-        coVerify(exactly = 0) { dao.deleteById(3) }
+        coVerify { dao.deleteExceptTop(3) }
     }
 
     @Test
-    fun `cleanup is no-op when under limit`() = runTest {
-        coEvery { dao.getCount() } returns 3
+    fun `cleanup with large limit calls deleteExceptTop`() = runTest {
+        coEvery { dao.deleteExceptTop(100) } returns 0
 
-        repo.cleanup(5)
+        repo.cleanup(100)
 
-        coVerify(exactly = 0) { dao.getTopFacts(any()) }
-        coVerify(exactly = 0) { dao.getAll() }
-        coVerify(exactly = 0) { dao.deleteById(any()) }
+        coVerify { dao.deleteExceptTop(100) }
     }
 
     @Test
@@ -88,56 +77,15 @@ class MemoryRepositoryImplTest {
         coVerify { dao.getTopFacts(5) }
     }
 
-    // --- LRU eviction verification ---
+    // --- cleanup delegates to atomic deleteExceptTop ---
 
     @Test
-    fun `cleanup evicts lowest importance facts first`() = runTest {
-        // 5 facts: importance 5, 4, 3, 2, 1 — keep top 3
-        val topFacts = listOf(entity(1, 5), entity(2, 4), entity(3, 3))
-        val lowFacts = listOf(entity(4, 2), entity(5, 1))
-        val allFacts = topFacts + lowFacts
-
-        coEvery { dao.getCount() } returns 5
-        coEvery { dao.getTopFacts(3) } returns topFacts
-        coEvery { dao.getAll() } returns allFacts
-
-        repo.cleanup(3)
-
-        // Low importance facts should be evicted
-        coVerify { dao.deleteById(4) }
-        coVerify { dao.deleteById(5) }
-        // High importance facts should be preserved
-        coVerify(exactly = 0) { dao.deleteById(1) }
-        coVerify(exactly = 0) { dao.deleteById(2) }
-        coVerify(exactly = 0) { dao.deleteById(3) }
-    }
-
-    @Test
-    fun `cleanup handles exact limit boundary`() = runTest {
-        coEvery { dao.getCount() } returns 100
-
-        val topFacts = (1L..100L).map { entity(it, (it % 5 + 1).toInt()) }
-        coEvery { dao.getTopFacts(100) } returns topFacts
-        coEvery { dao.getAll() } returns topFacts
-
-        repo.cleanup(100)
-
-        // All facts are in topFacts set — nothing deleted
-        coVerify(exactly = 0) { dao.deleteById(any()) }
-    }
-
-    @Test
-    fun `cleanup with maxFacts=0 deletes everything`() = runTest {
-        val allFacts = listOf(entity(1, 5), entity(2, 3))
-
-        coEvery { dao.getCount() } returns 2
-        coEvery { dao.getTopFacts(0) } returns emptyList()
-        coEvery { dao.getAll() } returns allFacts
+    fun `cleanup with maxFacts=0 calls deleteExceptTop(0)`() = runTest {
+        coEvery { dao.deleteExceptTop(0) } returns 5
 
         repo.cleanup(0)
 
-        coVerify { dao.deleteById(1) }
-        coVerify { dao.deleteById(2) }
+        coVerify { dao.deleteExceptTop(0) }
     }
 
     @Test

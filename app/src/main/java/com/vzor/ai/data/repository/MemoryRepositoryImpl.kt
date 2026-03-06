@@ -46,18 +46,7 @@ class MemoryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun cleanup(maxFacts: Int) {
-        val count = memoryFactDao.getCount()
-        if (count <= maxFacts) return
-
-        // Keep only the top N facts (by importance and recency), delete the rest
-        val topFacts = memoryFactDao.getTopFacts(maxFacts)
-        val keepIds = topFacts.map { it.id }.toSet()
-
-        val allFacts = memoryFactDao.getAll()
-        for (fact in allFacts) {
-            if (fact.id !in keepIds) {
-                memoryFactDao.deleteById(fact.id)
-            }
-        }
+        // Атомарная очистка — один SQL запрос, нет race condition
+        memoryFactDao.deleteExceptTop(maxFacts)
     }
 }

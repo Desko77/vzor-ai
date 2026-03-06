@@ -1,6 +1,8 @@
 package com.vzor.ai.domain.repository
 
 import com.vzor.ai.domain.model.Message
+import com.vzor.ai.domain.model.StreamChunk
+import com.vzor.ai.domain.model.ToolDefinition
 import kotlinx.coroutines.flow.Flow
 
 interface AiRepository {
@@ -8,13 +10,13 @@ interface AiRepository {
     fun streamMessage(messages: List<Message>): Flow<String>
 
     /**
-     * Стриминг с поддержкой tool calls (Claude API).
+     * Стриминг с поддержкой tool calls.
      * Для провайдеров без tool use — делегирует в streamMessage().
      */
     fun streamWithTools(
         messages: List<Message>,
-        tools: List<com.vzor.ai.data.remote.ClaudeTool> = emptyList()
-    ): Flow<com.vzor.ai.data.remote.StreamChunk>
+        tools: List<ToolDefinition> = emptyList()
+    ): Flow<StreamChunk>
 
     /**
      * Продолжение стриминга после tool_result (multi-turn tool use).
@@ -22,7 +24,7 @@ interface AiRepository {
      */
     fun streamToolContinuation(
         messages: List<Message>,
-        tools: List<com.vzor.ai.data.remote.ClaudeTool>,
+        tools: List<ToolDefinition>,
         toolResults: List<com.vzor.ai.orchestrator.ToolCallWithResult>
-    ): Flow<com.vzor.ai.data.remote.StreamChunk>
+    ): Flow<StreamChunk>
 }

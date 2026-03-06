@@ -288,8 +288,10 @@ class ToolRegistry @Inject constructor(
     }
 
     private suspend fun executeActionPlayMusic(args: Map<String, String>): ToolResult {
-        val slots = mutableMapOf<String, String>()
-        args["action"]?.let { slots["action"] = it }
+        val action = args["action"]
+            ?: return ToolResult(false, "Не указано действие (play, pause, next, previous)")
+
+        val slots = mutableMapOf("action" to action)
         args["query"]?.let { slots["query"] = it }
 
         val intent = VzorIntent(

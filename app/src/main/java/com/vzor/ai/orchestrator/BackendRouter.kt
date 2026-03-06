@@ -4,12 +4,14 @@ import com.vzor.ai.data.local.PreferencesManager
 import com.vzor.ai.domain.model.NetworkType
 import com.vzor.ai.domain.model.RoutingContext
 import com.vzor.ai.domain.model.RoutingDecision
+import com.vzor.ai.speech.AudioContext
+import com.vzor.ai.speech.AudioContextDetector
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Determines which AI backend to use based on network conditions,
- * battery level, connection profile and EVO X2 local server availability.
+ * battery level, connection profile, audio context and EVO X2 local server availability.
  *
  * Routing algorithm priority:
  * 1. Offline → on-device model (Qwen3.5-4B)
@@ -19,11 +21,16 @@ import javax.inject.Singleton
  * 5. Wi-Fi + X2 available + queue < 800ms → local AI
  * 6. Wi-Fi + X2 available + queue >= 800ms → cloud (X2 overloaded)
  * 7. LTE → cloud
+ *
+ * Дополнительно: AudioContextDetector влияет на приоритет STT:
+ * - MUSIC → подавление STT (снижение false-positive от wake word)
+ * - SPEECH → повышенный приоритет STT
  */
 @Singleton
 class BackendRouter @Inject constructor(
     private val prefs: PreferencesManager,
-    private val connectionProfileManager: ConnectionProfileManager? = null
+    private val connectionProfileManager: ConnectionProfileManager? = null,
+    private val audioContextDetector: AudioContextDetector? = null
 ) {
     companion object {
         /** Maximum acceptable queue wait time on EVO X2 before falling back to cloud. */
@@ -42,6 +49,17 @@ class BackendRouter @Inject constructor(
     /** Текущий профиль подключения (для UI/логирования). */
     val currentProfile: ConnectionProfile
         get() = connectionProfileManager?.currentProfile?.value ?: ConnectionProfile.OFFLINE
+
+    /** Текущий аудио-контекст (для UI/логирования). */
+    val audioContext: AudioContext
+        get() = audioContextDetector?.currentContext?.value ?: AudioContext.SILENCE
+
+    /**
+     * Следует ли подавлять STT-распознавание (например, при воспроизведении музыки).
+     * Позволяет избежать ложных wake word detections во время прослушивания.
+     */
+    val shouldSuppressStt: Boolean
+        get() = audioContextDetector?.currentContext?.value == AudioContext.MUSIC
 
     fun route(context: RoutingContext): RoutingDecision {
         // 1. Offline → on-device offline backend

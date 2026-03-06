@@ -31,4 +31,18 @@ interface MemoryFactDao {
 
     @Query("SELECT COUNT(*) FROM memory_facts")
     suspend fun getCount(): Int
+
+    /**
+     * Атомарная очистка: удаляет все факты кроме top N (по importance и recency).
+     * Один SQL запрос вместо 3 последовательных — нет race condition.
+     */
+    @Query("""
+        DELETE FROM memory_facts
+        WHERE id NOT IN (
+            SELECT id FROM memory_facts
+            ORDER BY importance DESC, lastAccessedAt DESC
+            LIMIT :keepCount
+        )
+    """)
+    suspend fun deleteExceptTop(keepCount: Int): Int
 }
