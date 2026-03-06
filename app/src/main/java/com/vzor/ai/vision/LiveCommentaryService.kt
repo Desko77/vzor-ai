@@ -75,7 +75,7 @@ class LiveCommentaryService @Inject constructor(
             var previousScene = visionRouter.getCachedScene()
             val interval = intervalMs.coerceAtLeast(MIN_INTERVAL_MS)
 
-            while (isActive) {
+            while (isActive.value) {
                 try {
                     val frame = captureFrame()
                     if (frame == null || frame.isEmpty()) {
