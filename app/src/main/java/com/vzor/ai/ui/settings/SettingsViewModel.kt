@@ -43,16 +43,18 @@ class SettingsViewModel @Inject constructor(
                 prefs.claudeApiKey,
                 prefs.openAiApiKey,
                 prefs.sttProvider
-            ) { aiProvider, geminiKey, claudeKey, openAiKey, sttProvider ->
-                _uiState.value.copy(
-                    aiProvider = aiProvider,
-                    geminiApiKey = geminiKey,
-                    claudeApiKey = claudeKey,
-                    openAiApiKey = openAiKey,
-                    sttProvider = sttProvider
-                )
-            }.collect { partial ->
-                _uiState.update { partial }
+            ) { values ->
+                values
+            }.collect { values ->
+                _uiState.update { current ->
+                    current.copy(
+                        aiProvider = values[0] as AiProvider,
+                        geminiApiKey = values[1] as String,
+                        claudeApiKey = values[2] as String,
+                        openAiApiKey = values[3] as String,
+                        sttProvider = values[4] as SttProvider
+                    )
+                }
             }
         }
 
@@ -81,16 +83,18 @@ class SettingsViewModel @Inject constructor(
                 prefs.tavilyApiKey,
                 prefs.developerMode,
                 prefs.homeSsid
-            ) { glmKey, localHost, tavilyKey, devMode, ssid ->
-                _uiState.value.copy(
-                    glmApiKey = glmKey,
-                    localAiHost = localHost,
-                    tavilyApiKey = tavilyKey,
-                    developerMode = devMode,
-                    homeSsid = ssid
-                )
-            }.collect { partial ->
-                _uiState.update { partial }
+            ) { values ->
+                values
+            }.collect { values ->
+                _uiState.update { current ->
+                    current.copy(
+                        glmApiKey = values[0] as String,
+                        localAiHost = values[1] as String,
+                        tavilyApiKey = values[2] as String,
+                        developerMode = values[3] as Boolean,
+                        homeSsid = values[4] as String
+                    )
+                }
             }
         }
     }
