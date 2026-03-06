@@ -190,6 +190,36 @@ class IntentClassifier @Inject constructor() {
                 WeightedKeyword("выключи фокус", 1.0f)
             ),
             baseConfidence = 0.85f
+        ),
+        // Food Analysis (UC#4: анализ еды и калорийности)
+        IntentRule(
+            intentType = IntentType.FOOD_ANALYSIS,
+            keywords = listOf(
+                WeightedKeyword("сколько калорий", 1.0f),
+                WeightedKeyword("калорийность", 1.0f),
+                WeightedKeyword("что за блюдо", 1.0f),
+                WeightedKeyword("что за еда", 0.9f),
+                WeightedKeyword("из чего приготовлено", 0.9f),
+                WeightedKeyword("бжу", 0.9f),
+                WeightedKeyword("состав блюда", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
+        ),
+        // Shopping Assist (UC#5: шопинг-помощник)
+        IntentRule(
+            intentType = IntentType.SHOPPING_ASSIST,
+            keywords = listOf(
+                WeightedKeyword("сколько стоит", 1.0f),
+                WeightedKeyword("какая цена", 1.0f),
+                WeightedKeyword("сравни товар", 1.0f),
+                WeightedKeyword("что лучше купить", 0.9f),
+                WeightedKeyword("прочитай ценник", 1.0f),
+                WeightedKeyword("прочитай этикетку", 0.9f),
+                WeightedKeyword("стоит ли покупать", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
         )
     )
 

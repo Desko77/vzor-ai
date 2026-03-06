@@ -23,5 +23,7 @@ enum class IntentType {
     CAPTURE_PHOTO,      // "Сфотографируй" → GlassesManager.capturePhoto (UC#11)
     LIVE_COMMENTARY,    // "Включи комментарий" → LiveCommentaryService (UC#6)
     CONVERSATION_FOCUS, // "Режим фокуса" → ConversationFocusManager (UC#13)
+    FOOD_ANALYSIS,      // "Сколько калорий?" → VisionRouter + FoodAnalysisPrompts (UC#4)
+    SHOPPING_ASSIST,    // "Сколько стоит?" → VisionRouter + ShoppingComparisonHelper (UC#5)
     UNKNOWN
 }

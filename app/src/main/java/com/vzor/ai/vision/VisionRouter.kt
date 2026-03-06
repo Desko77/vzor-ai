@@ -50,7 +50,16 @@ class VisionRouter @Inject constructor(
             return Result.failure(Exception("Vision API rate limit exceeded"))
         }
 
-        return visionRepository.analyzeImage(imageBytes, prompt)
+        // UC#4: Автоматически обогащаем промпт для запросов о еде
+        val enhancedPrompt = if (FoodAnalysisPrompts.isFoodQuery(prompt)) {
+            FoodAnalysisPrompts.buildAnalysisPrompt(prompt)
+        } else if (ShoppingComparisonHelper.isShoppingQuery(prompt)) {
+            ShoppingComparisonHelper.buildProductAnalysisPrompt(prompt)
+        } else {
+            prompt
+        }
+
+        return visionRepository.analyzeImage(imageBytes, enhancedPrompt)
             .map { rawResponse -> parseSceneData(rawResponse) }
             .onSuccess { sceneData ->
                 val ttl = determineTtl(sceneData)

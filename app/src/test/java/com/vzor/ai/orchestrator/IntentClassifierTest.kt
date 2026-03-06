@@ -369,4 +369,58 @@ class IntentClassifierTest {
         val result = classifier.classify("Выключи фокус")
         assertEquals(IntentType.CONVERSATION_FOCUS, result.type)
     }
+
+    // --- UC#4: Food Analysis ---
+
+    @Test
+    fun `classify food analysis - сколько калорий`() {
+        val result = classifier.classify("Сколько калорий в этом блюде?")
+        assertEquals(IntentType.FOOD_ANALYSIS, result.type)
+        assertTrue(result.requiresVision)
+    }
+
+    @Test
+    fun `classify food analysis - что за блюдо`() {
+        val result = classifier.classify("Что за блюдо передо мной?")
+        assertEquals(IntentType.FOOD_ANALYSIS, result.type)
+    }
+
+    @Test
+    fun `classify food analysis - калорийность`() {
+        val result = classifier.classify("Калорийность этого")
+        assertEquals(IntentType.FOOD_ANALYSIS, result.type)
+    }
+
+    @Test
+    fun `classify food analysis - бжу`() {
+        val result = classifier.classify("Покажи бжу")
+        assertEquals(IntentType.FOOD_ANALYSIS, result.type)
+    }
+
+    // --- UC#5: Shopping Assist ---
+
+    @Test
+    fun `classify shopping - сколько стоит`() {
+        val result = classifier.classify("Сколько стоит этот товар?")
+        assertEquals(IntentType.SHOPPING_ASSIST, result.type)
+        assertTrue(result.requiresVision)
+    }
+
+    @Test
+    fun `classify shopping - прочитай ценник`() {
+        val result = classifier.classify("Прочитай ценник")
+        assertEquals(IntentType.SHOPPING_ASSIST, result.type)
+    }
+
+    @Test
+    fun `classify shopping - сравни товар`() {
+        val result = classifier.classify("Сравни товары на полке")
+        assertEquals(IntentType.SHOPPING_ASSIST, result.type)
+    }
+
+    @Test
+    fun `classify shopping - стоит ли покупать`() {
+        val result = classifier.classify("Стоит ли покупать этот телефон?")
+        assertEquals(IntentType.SHOPPING_ASSIST, result.type)
+    }
 }
