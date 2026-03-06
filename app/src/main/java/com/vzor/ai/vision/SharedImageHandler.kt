@@ -34,7 +34,7 @@ class SharedImageHandler @Inject constructor() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val _sharedImages = MutableSharedFlow<ByteArray>(extraBufferCapacity = 1)
+    private val _sharedImages = MutableSharedFlow<ByteArray>(replay = 1, extraBufferCapacity = 1)
 
     /** Emits image bytes when a photo is shared to Vzor via ACTION_SEND. */
     val sharedImages: SharedFlow<ByteArray> = _sharedImages.asSharedFlow()

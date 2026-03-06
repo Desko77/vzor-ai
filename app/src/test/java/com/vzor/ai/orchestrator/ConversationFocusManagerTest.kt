@@ -131,7 +131,7 @@ class ConversationFocusManagerTest {
         val texts = listOf("Да", "Нет", "Ок", "Хорошо, обсудим", "Привет", "Ну")
 
         val accepted = texts.filter { it.length >= minLength }
-        assertEquals(4, accepted.size) // "Нет", "Хорошо, обсудим", "Привет"
+        assertEquals(3, accepted.size) // "Нет" (3), "Хорошо, обсудим" (15), "Привет" (6)
         // "Да" (2), "Ок" (2), "Ну" (2) отфильтрованы
         assertTrue(accepted.contains("Хорошо, обсудим"))
         assertTrue(accepted.contains("Привет"))
