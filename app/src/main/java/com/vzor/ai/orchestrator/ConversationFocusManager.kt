@@ -46,6 +46,8 @@ class ConversationFocusManager @Inject constructor(
 
         /** Минимальная длина реплики для добавления в транскрипт. */
         private const val MIN_UTTERANCE_LENGTH = 3
+
+        private val TIME_FORMAT = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT)
     }
 
     private val _state = MutableStateFlow(ConversationFocusState())
@@ -54,8 +56,9 @@ class ConversationFocusManager @Inject constructor(
     private var focusScope: CoroutineScope? = null
     private var listeningJob: Job? = null
 
-    // Буфер транскрипта разговора
+    // Буфер транскрипта разговора (доступ только через synchronized(lock))
     private val transcript = mutableListOf<TranscriptEntry>()
+    private val lock = Any()
 
     /**
      * Начать режим фокуса — AI начинает слушать разговор.
@@ -65,7 +68,7 @@ class ConversationFocusManager @Inject constructor(
 
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         focusScope = scope
-        transcript.clear()
+        synchronized(lock) { transcript.clear() }
 
         _state.update {
             ConversationFocusState(isActive = true, status = FocusStatus.LISTENING)
@@ -173,12 +176,12 @@ class ConversationFocusManager @Inject constructor(
     /**
      * Получить текущий транскрипт.
      */
-    fun getTranscript(): List<TranscriptEntry> = transcript.toList()
+    fun getTranscript(): List<TranscriptEntry> = synchronized(lock) { transcript.toList() }
 
     /**
      * Количество собранных реплик.
      */
-    fun getTranscriptSize(): Int = transcript.size
+    fun getTranscriptSize(): Int = synchronized(lock) { transcript.size }
 
     private suspend fun collectTranscript() {
         sttService.startListening().collect { result: SttResult ->
@@ -190,7 +193,7 @@ class ConversationFocusManager @Inject constructor(
                     confidence = result.confidence
                 )
 
-                synchronized(transcript) {
+                synchronized(lock) {
                     transcript.add(entry)
                     if (transcript.size > MAX_TRANSCRIPT_ENTRIES) {
                         transcript.removeAt(0)
@@ -207,7 +210,7 @@ class ConversationFocusManager @Inject constructor(
     }
 
     private fun buildTranscriptText(): String {
-        return synchronized(transcript) {
+        return synchronized(lock) {
             transcript.joinToString("\n") { entry ->
                 "[${formatTime(entry.timestamp)}] ${entry.text}"
             }
@@ -278,8 +281,7 @@ class ConversationFocusManager @Inject constructor(
     }
 
     private fun formatTime(timestamp: Long): String {
-        val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-        return sdf.format(java.util.Date(timestamp))
+        return synchronized(TIME_FORMAT) { TIME_FORMAT.format(java.util.Date(timestamp)) }
     }
 }
 
