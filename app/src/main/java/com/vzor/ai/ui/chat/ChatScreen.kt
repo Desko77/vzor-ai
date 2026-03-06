@@ -97,6 +97,25 @@ fun ChatScreen(
             )
         }
     ) { paddingValues ->
+        // Диалог подтверждения действия
+        uiState.pendingAction?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { viewModel.denyAction() },
+                title = { Text("Подтверждение") },
+                text = { Text(pending.description) },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.confirmAction() }) {
+                        Text("Да")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.denyAction() }) {
+                        Text("Нет")
+                    }
+                }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

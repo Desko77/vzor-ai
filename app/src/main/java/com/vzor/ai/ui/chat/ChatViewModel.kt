@@ -2,16 +2,24 @@ package com.vzor.ai.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vzor.ai.actions.ActionConfirmation
+import com.vzor.ai.actions.ActionExecutor
+import com.vzor.ai.actions.PendingAction
+import com.vzor.ai.context.ContextManager
 import com.vzor.ai.data.local.PreferencesManager
 import com.vzor.ai.domain.model.Conversation
 import com.vzor.ai.domain.model.GlassesState
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
+import com.vzor.ai.domain.model.VoiceEvent
 import com.vzor.ai.domain.model.VoiceState
+import com.vzor.ai.domain.model.IntentType
+import com.vzor.ai.domain.model.VzorIntent
 import com.vzor.ai.domain.repository.AiRepository
 import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
+import com.vzor.ai.orchestrator.IntentClassifier
 import com.vzor.ai.orchestrator.VoiceOrchestrator
 import com.vzor.ai.speech.SttService
 import com.vzor.ai.tts.TtsManager
@@ -28,7 +36,8 @@ data class ChatUiState(
     val isRecording: Boolean = false,
     val glassesState: GlassesState = GlassesState.DISCONNECTED,
     val voiceState: VoiceState = VoiceState.IDLE,
-    val currentConversation: Conversation? = null
+    val currentConversation: Conversation? = null,
+    val pendingAction: PendingAction? = null
 )
 
 @HiltViewModel
@@ -40,7 +49,11 @@ class ChatViewModel @Inject constructor(
     private val voiceOrchestrator: VoiceOrchestrator,
     private val sttService: SttService,
     private val ttsManager: TtsManager,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val actionConfirmation: ActionConfirmation,
+    private val actionExecutor: ActionExecutor,
+    private val intentClassifier: IntentClassifier,
+    private val contextManager: ContextManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -57,11 +70,18 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(voiceState = voiceState) }
             }
         }
+        // Наблюдаем за pending actions для показа диалога подтверждения
+        viewModelScope.launch {
+            actionConfirmation.pendingAction.collect { pending ->
+                _uiState.update { it.copy(pendingAction = pending) }
+            }
+        }
     }
 
     fun startNewConversation() {
         viewModelScope.launch {
             val conversation = conversationRepository.createConversation("Новый диалог")
+            contextManager.clearSession()
             _uiState.update {
                 it.copy(
                     messages = emptyList(),
@@ -110,17 +130,32 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             conversationRepository.saveMessage(userMessage)
+            contextManager.addToSession(userMessage)
 
+            // Классификация intent — если действие, выполняем без LLM
+            val intent = intentClassifier.classify(text)
+            if (intent.type != IntentType.GENERAL_QUESTION &&
+                intent.type != IntentType.UNKNOWN) {
+                handleActionIntent(intent, conversationId)
+                return@launch
+            }
+
+            // Обычный LLM запрос с контекстом из ContextManager
             val systemPrompt = prefs.systemPrompt.first()
             val messagesForApi = buildList {
                 add(Message(role = MessageRole.SYSTEM, content = systemPrompt))
-                addAll(_uiState.value.messages)
+                addAll(contextManager.getSessionContext())
             }
+
+            voiceOrchestrator.onEvent(VoiceEvent.IntentReady(
+                VzorIntent(type = IntentType.GENERAL_QUESTION, confidence = 1.0f)
+            ))
 
             val responseBuilder = StringBuilder()
 
             aiRepository.streamMessage(messagesForApi)
                 .catch { e ->
+                    voiceOrchestrator.onEvent(VoiceEvent.ErrorOccurred(e))
                     _uiState.update {
                         it.copy(isLoading = false, error = e.message ?: "Ошибка")
                     }
@@ -154,14 +189,55 @@ class ChatViewModel @Inject constructor(
             // Flush remaining TTS buffer after streaming completes
             if (_uiState.value.glassesState == GlassesState.CONNECTED) {
                 ttsManager.onStreamEnd()
+                voiceOrchestrator.onEvent(VoiceEvent.TtsComplete)
             }
 
-            // Save final assistant message
+            // Save final assistant message + context
             val finalMessage = _uiState.value.messages.lastOrNull { it.role == MessageRole.ASSISTANT }
             if (finalMessage != null) {
                 conversationRepository.saveMessage(finalMessage)
+                contextManager.addToSession(finalMessage)
             }
         }
+    }
+
+    /**
+     * Обработка action intent (звонок, сообщение, навигация и т.д.).
+     * Если требуется подтверждение — показывает диалог.
+     */
+    private suspend fun handleActionIntent(intent: VzorIntent, conversationId: String) {
+        if (actionConfirmation.requiresConfirmation(intent)) {
+            voiceOrchestrator.onEvent(VoiceEvent.ConfirmRequired(
+                action = intent.type.name,
+                description = "Подтвердите действие"
+            ))
+
+            val confirmed = actionConfirmation.requestConfirmation(intent)
+            if (!confirmed) {
+                voiceOrchestrator.onEvent(VoiceEvent.UserCancelled)
+                addAssistantMessage("Действие отменено.", conversationId)
+                return
+            }
+            voiceOrchestrator.onEvent(VoiceEvent.UserConfirmed)
+        }
+
+        val result = actionExecutor.execute(intent)
+        addAssistantMessage(result.message, conversationId)
+
+        if (_uiState.value.glassesState == GlassesState.CONNECTED) {
+            ttsManager.speak(result.message)
+        }
+    }
+
+    private suspend fun addAssistantMessage(text: String, conversationId: String) {
+        val msg = Message(
+            role = MessageRole.ASSISTANT,
+            content = text,
+            conversationId = conversationId
+        )
+        _uiState.update { it.copy(messages = it.messages + msg, isLoading = false) }
+        conversationRepository.saveMessage(msg)
+        contextManager.addToSession(msg)
     }
 
     fun sendImageMessage(imageBytes: ByteArray, prompt: String = "Что ты видишь на этом изображении? Опиши подробно на русском.") {
@@ -222,9 +298,12 @@ class ChatViewModel @Inject constructor(
 
     private fun startRecording() {
         _uiState.update { it.copy(isRecording = true) }
+        voiceOrchestrator.onEvent(VoiceEvent.ButtonPressed)
+
         viewModelScope.launch {
             sttService.startListening()
                 .catch { e ->
+                    voiceOrchestrator.onEvent(VoiceEvent.ErrorOccurred(e))
                     _uiState.update { it.copy(isRecording = false, error = e.message) }
                 }
                 .collect { result ->
@@ -236,9 +315,24 @@ class ChatViewModel @Inject constructor(
     private fun stopRecording() {
         sttService.stopListening()
         _uiState.update { it.copy(isRecording = false) }
-        if (_uiState.value.currentInput.isNotBlank()) {
+
+        val text = _uiState.value.currentInput
+        if (text.isNotBlank()) {
+            voiceOrchestrator.onEvent(VoiceEvent.SpeechEnd(transcript = text))
             sendMessage()
+        } else {
+            voiceOrchestrator.onEvent(VoiceEvent.SilenceTimeout())
         }
+    }
+
+    /** Подтвердить pending action из UI. */
+    fun confirmAction() {
+        actionConfirmation.confirm()
+    }
+
+    /** Отклонить pending action из UI. */
+    fun denyAction() {
+        actionConfirmation.deny()
     }
 
     fun connectGlasses() {

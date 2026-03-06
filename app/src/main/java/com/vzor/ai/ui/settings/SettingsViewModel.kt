@@ -23,7 +23,8 @@ data class SettingsUiState(
     val ttsProvider: TtsProvider = TtsProvider.GOOGLE,
     val yandexApiKey: String = "",
     val systemPrompt: String = "",
-    val developerMode: Boolean = false
+    val developerMode: Boolean = false,
+    val homeSsid: String = ""
 )
 
 @HiltViewModel
@@ -78,13 +79,15 @@ class SettingsViewModel @Inject constructor(
                 prefs.glmApiKey,
                 prefs.localAiHostOverride,
                 prefs.tavilyApiKey,
-                prefs.developerMode
-            ) { glmKey, localHost, tavilyKey, devMode ->
+                prefs.developerMode,
+                prefs.homeSsid
+            ) { values ->
                 _uiState.value.copy(
-                    glmApiKey = glmKey,
-                    localAiHost = localHost,
-                    tavilyApiKey = tavilyKey,
-                    developerMode = devMode
+                    glmApiKey = values[0] as String,
+                    localAiHost = values[1] as String,
+                    tavilyApiKey = values[2] as String,
+                    developerMode = values[3] as Boolean,
+                    homeSsid = values[4] as String
                 )
             }.collect { partial ->
                 _uiState.update { partial }
@@ -138,5 +141,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setDeveloperMode(enabled: Boolean) {
         viewModelScope.launch { prefs.setDeveloperMode(enabled) }
+    }
+
+    fun setHomeSsid(ssid: String) {
+        viewModelScope.launch { prefs.setHomeSsid(ssid) }
     }
 }

@@ -17,6 +17,7 @@ core-ktx = "1.15.0"
 generativeai = "0.9.0"
 mlkit-text = "16.0.1"
 mediapipe = "0.10.29"
+mwdat = "0.4.0"
 
 [libraries]
 # AndroidX
@@ -57,6 +58,11 @@ moshi-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", v
 generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
 mlkit-text = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkit-text" }
 mediapipe-vision = { group = "com.google.mediapipe", name = "tasks-vision", version.ref = "mediapipe" }
+
+# Meta Wearables DAT SDK
+mwdat-core = { module = "com.meta.wearable:mwdat-core", version.ref = "mwdat" }
+mwdat-camera = { module = "com.meta.wearable:mwdat-camera", version.ref = "mwdat" }
+mwdat-mockdevice = { module = "com.meta.wearable:mwdat-mockdevice", version.ref = "mwdat" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

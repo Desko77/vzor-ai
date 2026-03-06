@@ -14,6 +14,7 @@ import com.vzor.ai.data.remote.GlmApiService
 import com.vzor.ai.data.remote.OllamaService
 import com.vzor.ai.data.remote.OpenAiApiService
 import com.vzor.ai.data.remote.TavilySearchService
+import com.vzor.ai.data.remote.YandexTranslateService
 import com.vzor.ai.data.repository.AiRepositoryImpl
 import com.vzor.ai.data.repository.ConversationRepositoryImpl
 import com.vzor.ai.data.repository.MemoryRepositoryImpl
@@ -23,7 +24,7 @@ import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.speech.SttService
-import com.vzor.ai.speech.WhisperSttService
+import com.vzor.ai.speech.SttServiceRouter
 import com.vzor.ai.tts.TtsManager
 import com.vzor.ai.tts.TtsProvider
 import com.vzor.ai.tts.TtsService
@@ -113,6 +114,16 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideYandexTranslateApi(okHttpClient: OkHttpClient, moshi: Moshi): YandexTranslateService =
+        Retrofit.Builder()
+            .baseUrl("https://translate.api.cloud.yandex.net/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(YandexTranslateService::class.java)
+
+    @Provides
+    @Singleton
     fun provideOllamaService(okHttpClient: OkHttpClient, moshi: Moshi): OllamaService =
         OllamaService(okHttpClient, moshi)
 }
@@ -163,7 +174,7 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindSttService(impl: WhisperSttService): SttService
+    abstract fun bindSttService(impl: SttServiceRouter): SttService
 
     @Binds
     @Singleton

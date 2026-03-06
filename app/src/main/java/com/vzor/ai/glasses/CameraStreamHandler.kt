@@ -1,5 +1,6 @@
 package com.vzor.ai.glasses
 
+import android.util.Log
 import com.vzor.ai.vision.FrameSampler
 import com.vzor.ai.vision.SamplingMode
 import kotlinx.coroutines.CoroutineScope
@@ -17,25 +18,26 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Manages camera frame capture from smart glasses.
+ * Manages camera frame capture from smart glasses via Meta DAT SDK.
  *
  * This handler controls frame emission rate via the [FrameSampler] and exposes
  * captured JPEG frames through a [SharedFlow]. It uses DROP_OLDEST buffering
  * to prevent frame drops from blocking the producer.
  *
- * Note: The actual glasses camera SDK integration is a placeholder. In production
- * this would connect to the DAT SDK camera APIs.
+ * Camera frames are sourced from [GlassesManager.cameraFrames] which receives
+ * them from the DAT SDK StreamSession.videoStream. This handler applies
+ * rate-limiting via FrameSampler before passing frames downstream.
  */
 class CameraStreamHandler(
-    private val frameSampler: FrameSampler
+    private val frameSampler: FrameSampler,
+    private val glassesManager: GlassesManager
 ) {
 
     companion object {
+        private const val TAG = "CameraStreamHandler"
+
         /** Maximum number of frames buffered before dropping the oldest. */
         private const val FRAME_BUFFER_SIZE = 10
-
-        /** Polling interval when checking if a frame should be captured (ms). */
-        private const val POLL_INTERVAL_MS = 10L
     }
 
     private val _frames = MutableSharedFlow<ByteArray>(
@@ -56,7 +58,7 @@ class CameraStreamHandler(
     private var captureJob: Job? = null
 
     /**
-     * Starts capturing frames from the glasses camera.
+     * Starts capturing frames from the glasses camera via DAT SDK.
      * Frames are emitted to [frames] at the rate controlled by [frameSampler].
      * Does nothing if already capturing.
      */
@@ -67,17 +69,18 @@ class CameraStreamHandler(
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         captureScope = scope
 
+        // Запускаем стриминг камеры через GlassesManager (DAT SDK)
+        glassesManager.startCameraStream()
+
         captureJob = scope.launch {
-            while (isActive && _isCapturing.get()) {
+            Log.d(TAG, "Camera capture started, collecting from DAT SDK stream")
+
+            glassesManager.cameraFrames.collect { frame ->
+                if (!isActive || !_isCapturing.get()) return@collect
+
                 if (frameSampler.shouldCaptureFrame()) {
-                    val frame = captureFrameFromGlasses()
-                    if (frame != null) {
-                        _frames.emit(frame)
-                    }
+                    _frames.emit(frame)
                 }
-                // Short sleep to avoid busy-waiting; actual frame timing is
-                // controlled by FrameSampler.shouldCaptureFrame()
-                delay(POLL_INTERVAL_MS)
             }
         }
     }
@@ -88,23 +91,13 @@ class CameraStreamHandler(
     fun stopCapture() {
         if (!_isCapturing.getAndSet(false)) return
 
+        glassesManager.stopCameraStream()
+
         captureJob?.cancel()
         captureJob = null
         captureScope?.cancel()
         captureScope = null
-    }
 
-    /**
-     * Placeholder for actual glasses camera frame capture.
-     * In production, this would call into the DAT SDK to grab the
-     * latest camera frame as a JPEG-encoded byte array.
-     *
-     * @return JPEG bytes of the captured frame, or null if capture failed.
-     */
-    private fun captureFrameFromGlasses(): ByteArray? {
-        // DAT SDK integration placeholder.
-        // Replace with actual glasses camera API call, e.g.:
-        //   return datSdk.camera.captureFrame()?.toJpeg()
-        return null
+        Log.d(TAG, "Camera capture stopped")
     }
 }

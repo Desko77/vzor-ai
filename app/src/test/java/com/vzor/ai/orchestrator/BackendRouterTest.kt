@@ -4,7 +4,9 @@ import com.vzor.ai.data.local.PreferencesManager
 import com.vzor.ai.domain.model.NetworkType
 import com.vzor.ai.domain.model.RoutingContext
 import com.vzor.ai.domain.model.RoutingDecision
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -100,6 +102,35 @@ class BackendRouterTest {
     fun `LTE routes to CLOUD`() {
         val ctx = routingContext(network = NetworkType.LTE, battery = 80)
         assertEquals(RoutingDecision.CLOUD, router.route(ctx))
+    }
+
+    // --- HOME_WIFI profile auto-switch ---
+
+    @Test
+    fun `HOME_WIFI profile with X2 routes to LOCAL_AI`() {
+        val profileManager = mockk<ConnectionProfileManager> {
+            every { currentProfile } returns MutableStateFlow(ConnectionProfile.HOME_WIFI)
+        }
+        val routerWithProfile = BackendRouter(
+            mockk<PreferencesManager>(relaxed = true),
+            profileManager
+        )
+        val ctx = routingContext(network = NetworkType.WIFI, battery = 80, x2Available = true, x2Queue = 100)
+        assertEquals(RoutingDecision.LOCAL_AI, routerWithProfile.route(ctx))
+    }
+
+    @Test
+    fun `OTHER_WIFI profile falls through to standard routing`() {
+        val profileManager = mockk<ConnectionProfileManager> {
+            every { currentProfile } returns MutableStateFlow(ConnectionProfile.OTHER_WIFI)
+        }
+        val routerWithProfile = BackendRouter(
+            mockk<PreferencesManager>(relaxed = true),
+            profileManager
+        )
+        // OTHER_WIFI + X2 unavailable → CLOUD
+        val ctx = routingContext(network = NetworkType.WIFI, battery = 80, x2Available = false)
+        assertEquals(RoutingDecision.CLOUD, routerWithProfile.route(ctx))
     }
 
     // --- Helper ---
