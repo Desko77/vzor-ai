@@ -195,10 +195,16 @@ class ClaudeStreamingClient @Inject constructor(
     private fun parseToolArguments(json: String): Map<String, String> {
         if (json.isBlank()) return emptyMap()
         return try {
+            val anyAdapter = moshi.adapter(Any::class.java)
             val map = moshi.adapter<Map<String, Any>>(
                 Map::class.java
             ).fromJson(json) ?: return emptyMap()
-            map.mapValues { it.value.toString() }
+            map.mapValues { (_, value) ->
+                when (value) {
+                    is String -> value
+                    else -> anyAdapter.toJson(value) ?: value.toString()
+                }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Tool arguments parse error", e)
             emptyMap()

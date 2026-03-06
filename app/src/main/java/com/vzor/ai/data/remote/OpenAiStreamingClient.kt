@@ -226,9 +226,15 @@ class OpenAiStreamingClient @Inject constructor(
     private fun parseJsonArgs(json: String): Map<String, String> {
         if (json.isBlank() || json == "{}") return emptyMap()
         return try {
+            val anyAdapter = moshi.adapter(Any::class.java)
             val map = moshi.adapter<Map<String, Any>>(Map::class.java).fromJson(json)
                 ?: return emptyMap()
-            map.mapValues { it.value.toString() }
+            map.mapValues { (_, value) ->
+                when (value) {
+                    is String -> value
+                    else -> anyAdapter.toJson(value) ?: value.toString()
+                }
+            }
         } catch (_: Exception) {
             emptyMap()
         }

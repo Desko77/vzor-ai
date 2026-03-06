@@ -66,6 +66,9 @@ class ChatViewModel @Inject constructor(
     private val toolCallProcessor: ToolCallProcessor
 ) : ViewModel() {
 
+    /** Кешированные tool definitions — не меняются между сообщениями. */
+    private val cachedTools by lazy { toolCallProcessor.buildToolDefinitions() }
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -191,10 +194,9 @@ class ChatViewModel @Inject constructor(
         val responseBuilder = StringBuilder()
 
         // Tool-augmented streaming с multi-turn loop
-        val tools = toolCallProcessor.buildToolDefinitions()
-        val chunksFlow = aiRepository.streamWithTools(messagesForApi, tools)
+        val chunksFlow = aiRepository.streamWithTools(messagesForApi, cachedTools)
         val textFlow = toolCallProcessor.processStreamMultiTurn(chunksFlow) { toolResults ->
-            aiRepository.streamToolContinuation(messagesForApi, tools, toolResults)
+            aiRepository.streamToolContinuation(messagesForApi, cachedTools, toolResults)
         }
 
         textFlow
