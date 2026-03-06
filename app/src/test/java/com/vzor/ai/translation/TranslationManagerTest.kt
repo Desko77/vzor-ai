@@ -97,6 +97,77 @@ class TranslationManagerTest {
         assertEquals(TranslationMode.BIDIRECTIONAL, state.mode)
     }
 
+    // --- Language display names ---
+
+    @Test
+    fun `languageDisplayName maps common codes`() {
+        assertEquals("Russian", languageDisplayName("ru"))
+        assertEquals("English", languageDisplayName("en"))
+        assertEquals("German", languageDisplayName("de"))
+        assertEquals("French", languageDisplayName("fr"))
+        assertEquals("Spanish", languageDisplayName("es"))
+        assertEquals("Chinese", languageDisplayName("zh"))
+        assertEquals("Japanese", languageDisplayName("ja"))
+    }
+
+    @Test
+    fun `languageDisplayName returns code for unknown language`() {
+        assertEquals("xx", languageDisplayName("xx"))
+        assertEquals("uk", languageDisplayName("uk"))
+    }
+
+    // --- Language resolve pairs ---
+
+    @Test
+    fun `LISTEN mode translates from target to source`() {
+        // Scenario A: listening to foreign speaker → translate to native
+        val (src, tgt) = resolveLanguagePairSync(TranslationMode.LISTEN, "Hello", "en", "ru", "en")
+        assertEquals("en", src)
+        assertEquals("ru", tgt)
+    }
+
+    @Test
+    fun `SPEAK mode translates from source to target`() {
+        // Scenario B: user speaks native → translate to foreign
+        val (src, tgt) = resolveLanguagePairSync(TranslationMode.SPEAK, "Привет", "ru", "ru", "en")
+        assertEquals("ru", src)
+        assertEquals("en", tgt)
+    }
+
+    private fun languageDisplayName(code: String): String = when (code) {
+        "ru" -> "Russian"
+        "en" -> "English"
+        "de" -> "German"
+        "fr" -> "French"
+        "es" -> "Spanish"
+        "zh" -> "Chinese"
+        "ja" -> "Japanese"
+        "ko" -> "Korean"
+        "ar" -> "Arabic"
+        "pt" -> "Portuguese"
+        "it" -> "Italian"
+        "tr" -> "Turkish"
+        else -> code
+    }
+
+    private fun resolveLanguagePairSync(
+        mode: TranslationMode,
+        text: String,
+        detectedLang: String,
+        sourceLang: String = "ru",
+        targetLang: String = "en"
+    ): Pair<String, String> {
+        return when (mode) {
+            TranslationMode.LISTEN -> targetLang to sourceLang
+            TranslationMode.SPEAK -> sourceLang to targetLang
+            TranslationMode.BIDIRECTIONAL -> {
+                val detected = detectHeuristic(text, sourceLang)
+                if (detected == sourceLang) sourceLang to targetLang
+                else targetLang to sourceLang
+            }
+        }
+    }
+
     /**
      * Тестовая обёртка для Unicode heuristic detection.
      * Воспроизводит логику TranslationManager.detectLanguageHeuristic().

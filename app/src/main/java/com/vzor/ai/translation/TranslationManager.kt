@@ -253,8 +253,10 @@ class TranslationManager @Inject constructor(
     /**
      * Translate text using Yandex Translate API (primary, ~100-200ms)
      * with LLM fallback (if Yandex API key not set or API fails).
+     *
+     * Public для использования из ToolRegistry.
      */
-    private suspend fun translateText(text: String, from: String, to: String): String {
+    suspend fun translateText(text: String, from: String, to: String): String {
         // Попробовать Yandex Translate — быстрый машинный перевод
         val yandexKey = prefs.yandexApiKey.first()
         if (yandexKey.isNotBlank()) {

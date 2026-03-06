@@ -23,6 +23,7 @@ import com.vzor.ai.vision.SharedImageHandler
 import com.vzor.ai.vision.LiveCommentaryService
 import com.vzor.ai.orchestrator.ConversationFocusManager
 import com.vzor.ai.orchestrator.IntentClassifier
+import com.vzor.ai.orchestrator.ToolCallProcessor
 import com.vzor.ai.orchestrator.VoiceOrchestrator
 import com.vzor.ai.speech.SttService
 import com.vzor.ai.tts.TtsManager
@@ -61,7 +62,8 @@ class ChatViewModel @Inject constructor(
     private val contextManager: ContextManager,
     private val sharedImageHandler: SharedImageHandler,
     private val liveCommentaryService: LiveCommentaryService,
-    private val conversationFocusManager: ConversationFocusManager
+    private val conversationFocusManager: ConversationFocusManager,
+    private val toolCallProcessor: ToolCallProcessor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -179,7 +181,17 @@ class ChatViewModel @Inject constructor(
 
             val responseBuilder = StringBuilder()
 
-            aiRepository.streamMessage(messagesForApi)
+            // Tool-augmented streaming с multi-turn loop:
+            // Claude получает описания инструментов, ToolCallProcessor
+            // перехватывает tool_use, выполняет, и шлёт tool_result обратно
+            val tools = toolCallProcessor.buildClaudeTools()
+            val chunksFlow = aiRepository.streamWithTools(messagesForApi, tools)
+            val textFlow = toolCallProcessor.processStreamMultiTurn(chunksFlow) { toolResults ->
+                // Continuation: отправить tool_result обратно LLM
+                aiRepository.streamToolContinuation(messagesForApi, tools, toolResults)
+            }
+
+            textFlow
                 .catch { e ->
                     voiceOrchestrator.onEvent(VoiceEvent.ErrorOccurred(e))
                     _uiState.update {
