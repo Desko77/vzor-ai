@@ -83,7 +83,7 @@ class YandexSttService @Inject constructor(
 
             // Кольцевой буфер последних WINDOW_CHUNKS чанков для partial recognition
             val recentChunks = ArrayDeque<ByteArray>(WINDOW_CHUNKS + 1)
-            var totalBytesReceived = 0
+            var bytesSinceLastPartial = 0
 
             audioStreamHandler.streamAudio().collect { chunk ->
                 if (!_isListening) {
@@ -92,7 +92,6 @@ class YandexSttService @Inject constructor(
 
                 // Полный буфер для финальной отправки
                 audioBuffer.write(chunk)
-                totalBytesReceived += chunk.size
 
                 // Скользящее окно для partial recognition
                 recentChunks.addLast(chunk)
@@ -101,7 +100,9 @@ class YandexSttService @Inject constructor(
                 }
 
                 // Partial recognition по скользящему окну (O(1) по размеру данных)
-                if (totalBytesReceived % CHUNK_SIZE_BYTES < chunk.size) {
+                bytesSinceLastPartial += chunk.size
+                if (bytesSinceLastPartial >= CHUNK_SIZE_BYTES) {
+                    bytesSinceLastPartial = 0
                     try {
                         val windowAudio = mergeChunks(recentChunks)
                         val result = recognizeAudio(apiKey, windowAudio)

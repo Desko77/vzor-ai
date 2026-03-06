@@ -245,8 +245,8 @@ class TranslationManager @Inject constructor(
         val cyrillicRatio = cyrillicCount.toFloat() / total
 
         return when {
-            cyrillicRatio > 0.5f -> "ru"
-            else -> "en"
+            cyrillicRatio > 0.5f -> sourceLang
+            else -> targetLang
         }
     }
 
