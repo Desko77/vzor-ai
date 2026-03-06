@@ -19,6 +19,7 @@ import com.vzor.ai.domain.repository.AiRepository
 import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
+import com.vzor.ai.vision.SharedImageHandler
 import com.vzor.ai.orchestrator.IntentClassifier
 import com.vzor.ai.orchestrator.VoiceOrchestrator
 import com.vzor.ai.speech.SttService
@@ -53,7 +54,8 @@ class ChatViewModel @Inject constructor(
     private val actionConfirmation: ActionConfirmation,
     private val actionExecutor: ActionExecutor,
     private val intentClassifier: IntentClassifier,
-    private val contextManager: ContextManager
+    private val contextManager: ContextManager,
+    private val sharedImageHandler: SharedImageHandler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -74,6 +76,12 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             actionConfirmation.pendingAction.collect { pending ->
                 _uiState.update { it.copy(pendingAction = pending) }
+            }
+        }
+        // Обработка фото, расшаренных через Android Share (Meta View → Vzor)
+        viewModelScope.launch {
+            sharedImageHandler.sharedImages.collect { imageBytes ->
+                sendImageMessage(imageBytes)
             }
         }
     }

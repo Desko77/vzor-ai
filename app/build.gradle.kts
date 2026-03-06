@@ -128,6 +128,8 @@ dependencies {
 
     // Security
     implementation(libs.security.crypto)
+    implementation(libs.sqlcipher)
+    implementation(libs.sqlite.support)
 
     // Coroutines
     implementation(libs.coroutines)
