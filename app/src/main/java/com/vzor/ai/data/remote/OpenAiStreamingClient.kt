@@ -235,7 +235,8 @@ class OpenAiStreamingClient @Inject constructor(
                     else -> anyAdapter.toJson(value) ?: value.toString()
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("OpenAiStreamingClient", "Tool arguments parse error: ${e.message}")
             emptyMap()
         }
     }

@@ -192,6 +192,8 @@ class ChatViewModel @Inject constructor(
         ))
 
         val responseBuilder = StringBuilder()
+        // Уникальный ID для текущего стрим-сообщения — предотвращает перезапись чужих сообщений
+        val streamMessageId = java.util.UUID.randomUUID().toString()
 
         // Tool-augmented streaming с multi-turn loop
         val chunksFlow = aiRepository.streamWithTools(messagesForApi, cachedTools)
@@ -214,6 +216,7 @@ class ChatViewModel @Inject constructor(
                 }
 
                 val assistantMessage = Message(
+                    id = streamMessageId,
                     role = MessageRole.ASSISTANT,
                     content = responseBuilder.toString(),
                     conversationId = conversationId
@@ -221,8 +224,8 @@ class ChatViewModel @Inject constructor(
 
                 _uiState.update { state ->
                     val messages = state.messages.toMutableList()
-                    val existingIndex = messages.indexOfLast { it.role == MessageRole.ASSISTANT }
-                    if (existingIndex >= 0 && messages[existingIndex].conversationId == conversationId) {
+                    val existingIndex = messages.indexOfLast { it.id == streamMessageId }
+                    if (existingIndex >= 0) {
                         messages[existingIndex] = assistantMessage
                     } else {
                         messages.add(assistantMessage)
