@@ -12,7 +12,8 @@ class VisionRouter @Inject constructor(
     private val perceptionCache: PerceptionCache,
     private val visionRepository: VisionRepository,
     private val onDeviceProcessor: OnDeviceVisionProcessor,
-    private val mediaPipeProcessor: MediaPipeVisionProcessor
+    private val mediaPipeProcessor: MediaPipeVisionProcessor,
+    private val budgetManager: VisionBudgetManager
 ) {
 
     companion object {
@@ -42,6 +43,11 @@ class VisionRouter @Inject constructor(
             if (cached != null) {
                 return Result.success(cached)
             }
+        }
+
+        // Проверяем бюджет перед cloud VLM запросом
+        if (!budgetManager.tryAcquire()) {
+            return Result.failure(Exception("Vision API rate limit exceeded"))
         }
 
         return visionRepository.analyzeImage(imageBytes, prompt)

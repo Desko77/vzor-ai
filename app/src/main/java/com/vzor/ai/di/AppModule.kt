@@ -23,7 +23,7 @@ import com.vzor.ai.domain.repository.ConversationRepository
 import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.speech.SttService
-import com.vzor.ai.speech.WhisperSttService
+import com.vzor.ai.speech.SttServiceRouter
 import com.vzor.ai.tts.TtsManager
 import com.vzor.ai.tts.TtsProvider
 import com.vzor.ai.tts.TtsService
@@ -163,7 +163,7 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindSttService(impl: WhisperSttService): SttService
+    abstract fun bindSttService(impl: SttServiceRouter): SttService
 
     @Binds
     @Singleton

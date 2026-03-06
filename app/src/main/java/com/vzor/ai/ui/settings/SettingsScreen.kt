@@ -101,6 +101,16 @@ fun SettingsScreen(
                 placeholder = { Text("192.168.1.100") }
             )
 
+            OutlinedTextField(
+                value = uiState.homeSsid,
+                onValueChange = viewModel::setHomeSsid,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Домашняя Wi-Fi (SSID)") },
+                singleLine = true,
+                supportingText = { Text("Автопереключение на Local AI при подключении") },
+                placeholder = { Text("MyHomeNetwork") }
+            )
+
             HorizontalDivider()
 
             // STT Provider

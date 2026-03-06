@@ -9,19 +9,21 @@ import javax.inject.Singleton
 
 /**
  * Determines which AI backend to use based on network conditions,
- * battery level, and EVO X2 local server availability.
+ * battery level, connection profile and EVO X2 local server availability.
  *
  * Routing algorithm priority:
  * 1. Offline → on-device model (Qwen3.5-4B)
  * 2. Battery < 20% → cloud (minimize local AI load)
- * 3. Wi-Fi + X2 unavailable → cloud
- * 4. Wi-Fi + X2 available + queue < 800ms → local AI
- * 5. Wi-Fi + X2 available + queue >= 800ms → cloud (X2 overloaded)
- * 6. LTE → cloud
+ * 3. HOME_WIFI profile + X2 available + queue ok → local AI (auto-switch)
+ * 4. Wi-Fi + X2 unavailable → cloud
+ * 5. Wi-Fi + X2 available + queue < 800ms → local AI
+ * 6. Wi-Fi + X2 available + queue >= 800ms → cloud (X2 overloaded)
+ * 7. LTE → cloud
  */
 @Singleton
 class BackendRouter @Inject constructor(
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val connectionProfileManager: ConnectionProfileManager? = null
 ) {
     companion object {
         /** Maximum acceptable queue wait time on EVO X2 before falling back to cloud. */
@@ -37,6 +39,10 @@ class BackendRouter @Inject constructor(
      * @param context Current device and network conditions.
      * @return The [RoutingDecision] indicating which backend to use.
      */
+    /** Текущий профиль подключения (для UI/логирования). */
+    val currentProfile: ConnectionProfile
+        get() = connectionProfileManager?.currentProfile?.value ?: ConnectionProfile.OFFLINE
+
     fun route(context: RoutingContext): RoutingDecision {
         // 1. Offline → on-device offline backend
         if (context.networkType == NetworkType.OFFLINE) {
@@ -48,7 +54,16 @@ class BackendRouter @Inject constructor(
             return RoutingDecision.CLOUD
         }
 
-        // 3. Wi-Fi but X2 unavailable → cloud
+        // 3. HOME_WIFI + X2 available → предпочитаем local AI (автопереключение)
+        val profile = connectionProfileManager?.currentProfile?.value
+        if (profile == ConnectionProfile.HOME_WIFI &&
+            context.x2Available &&
+            context.x2QueueWaitMs < X2_QUEUE_THRESHOLD_MS
+        ) {
+            return RoutingDecision.LOCAL_AI
+        }
+
+        // 4. Wi-Fi but X2 unavailable → cloud
         if (context.networkType == NetworkType.WIFI && !context.x2Available) {
             return RoutingDecision.CLOUD
         }
