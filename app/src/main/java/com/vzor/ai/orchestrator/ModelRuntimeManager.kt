@@ -70,6 +70,10 @@ class ModelRuntimeManager @Inject constructor() {
     /** Используемая память моделями (MB). */
     val usedMemoryMb: StateFlow<Int> = _usedMemoryMb.asStateFlow()
 
+    private val _totalMemoryMb = MutableStateFlow(memoryLimitMb)
+    /** Лимит памяти для моделей (MB). */
+    val totalMemoryMb: StateFlow<Int> = _totalMemoryMb.asStateFlow()
+
     /**
      * Регистрирует модель в менеджере.
      * Модель не загружается автоматически — используйте [requestLoad].
@@ -158,6 +162,7 @@ class ModelRuntimeManager @Inject constructor() {
     suspend fun setMemoryLimit(limitMb: Int) {
         mutex.withLock {
             memoryLimitMb = limitMb.coerceAtLeast(1024)
+            _totalMemoryMb.value = memoryLimitMb
         }
     }
 
