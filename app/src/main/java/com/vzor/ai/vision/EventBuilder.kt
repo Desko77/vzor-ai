@@ -11,7 +11,9 @@ enum class VisionEventType {
     NEW_OBJECT,
     OBJECT_REMOVED,
     FACE_DETECTED,
-    FACE_LOST
+    FACE_LOST,
+    HAND_GESTURE_DETECTED,
+    HAND_GESTURE_LOST
 }
 
 data class VisionEvent(
@@ -136,6 +138,39 @@ class EventBuilder @Inject constructor() {
                     timestamp = now
                 )
             )
+        }
+
+        // --- Hand gesture events ---
+        val prevGestures = previous.gestures.toSet()
+        val currGestures = current.gestures.toSet()
+
+        if (prevGestures.isEmpty() && currGestures.isNotEmpty()) {
+            events.add(
+                VisionEvent(
+                    type = VisionEventType.HAND_GESTURE_DETECTED,
+                    description = "Hand gesture detected: ${currGestures.joinToString(", ")}",
+                    timestamp = now
+                )
+            )
+        } else if (prevGestures.isNotEmpty() && currGestures.isEmpty()) {
+            events.add(
+                VisionEvent(
+                    type = VisionEventType.HAND_GESTURE_LOST,
+                    description = "Hand gesture no longer visible",
+                    timestamp = now
+                )
+            )
+        } else if (prevGestures != currGestures && currGestures.isNotEmpty()) {
+            val newGestures = currGestures - prevGestures
+            if (newGestures.isNotEmpty()) {
+                events.add(
+                    VisionEvent(
+                        type = VisionEventType.HAND_GESTURE_DETECTED,
+                        description = "New hand gesture: ${newGestures.joinToString(", ")}",
+                        timestamp = now
+                    )
+                )
+            }
         }
 
         // --- Scene change ---

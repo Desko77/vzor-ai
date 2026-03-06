@@ -20,6 +20,7 @@ class EventBuilderTest {
         objects: List<String> = emptyList(),
         text: List<String> = emptyList(),
         faceCount: Int = 0,
+        gestures: List<String> = emptyList(),
         timestamp: Long = System.currentTimeMillis()
     ) = SceneData(
         sceneId = "test",
@@ -27,7 +28,8 @@ class EventBuilderTest {
         sceneSummary = summary,
         objects = objects.map { DetectedObject(it, 0.9f) },
         text = text,
-        faceCount = faceCount
+        faceCount = faceCount,
+        gestures = gestures
     )
 
     // --- Initial observation (previous = null) ---
@@ -163,6 +165,43 @@ class EventBuilderTest {
         // significantObjectChange is true, but sceneSummaryChanged is false
         // So no SCENE_CHANGED emitted (only if summary changed)
         assertFalse(events.any { it.type == VisionEventType.SCENE_CHANGED })
+    }
+
+    // --- Hand gesture events ---
+
+    @Test
+    fun `hand gesture detected from none emits HAND_GESTURE_DETECTED`() {
+        val prev = scene(gestures = emptyList())
+        val curr = scene(gestures = listOf("thumbs_up"))
+        val events = builder.detectEvents(prev, curr)
+        assertTrue(events.any { it.type == VisionEventType.HAND_GESTURE_DETECTED })
+    }
+
+    @Test
+    fun `hand gesture lost emits HAND_GESTURE_LOST`() {
+        val prev = scene(gestures = listOf("wave"))
+        val curr = scene(gestures = emptyList())
+        val events = builder.detectEvents(prev, curr)
+        assertTrue(events.any { it.type == VisionEventType.HAND_GESTURE_LOST })
+    }
+
+    @Test
+    fun `hand gesture change emits new gesture event`() {
+        val prev = scene(gestures = listOf("thumbs_up"))
+        val curr = scene(gestures = listOf("thumbs_up", "peace"))
+        val events = builder.detectEvents(prev, curr)
+        assertTrue(events.any { it.type == VisionEventType.HAND_GESTURE_DETECTED })
+        assertTrue(events.first { it.type == VisionEventType.HAND_GESTURE_DETECTED }
+            .description.contains("peace"))
+    }
+
+    @Test
+    fun `same gestures emit no gesture events`() {
+        val prev = scene(gestures = listOf("wave"))
+        val curr = scene(gestures = listOf("wave"))
+        val events = builder.detectEvents(prev, curr)
+        assertFalse(events.any { it.type == VisionEventType.HAND_GESTURE_DETECTED })
+        assertFalse(events.any { it.type == VisionEventType.HAND_GESTURE_LOST })
     }
 
     // --- Edge cases ---

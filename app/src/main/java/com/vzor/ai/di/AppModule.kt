@@ -14,6 +14,7 @@ import com.vzor.ai.data.remote.GlmApiService
 import com.vzor.ai.data.remote.OllamaService
 import com.vzor.ai.data.remote.OpenAiApiService
 import com.vzor.ai.data.remote.TavilySearchService
+import com.vzor.ai.data.remote.YandexTranslateService
 import com.vzor.ai.data.repository.AiRepositoryImpl
 import com.vzor.ai.data.repository.ConversationRepositoryImpl
 import com.vzor.ai.data.repository.MemoryRepositoryImpl
@@ -110,6 +111,16 @@ object NetworkModule {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(TavilySearchService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideYandexTranslateApi(okHttpClient: OkHttpClient, moshi: Moshi): YandexTranslateService =
+        Retrofit.Builder()
+            .baseUrl("https://translate.api.cloud.yandex.net/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(YandexTranslateService::class.java)
 
     @Provides
     @Singleton

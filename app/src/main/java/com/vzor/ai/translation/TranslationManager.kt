@@ -2,6 +2,8 @@ package com.vzor.ai.translation
 
 import android.util.Log
 import com.vzor.ai.data.local.PreferencesManager
+import com.vzor.ai.data.remote.YandexTranslateRequest
+import com.vzor.ai.data.remote.YandexTranslateService
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
 import com.vzor.ai.domain.repository.AiRepository
@@ -15,6 +17,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -34,6 +37,7 @@ class TranslationManager @Inject constructor(
     private val sttService: SttService,
     private val ttsManager: TtsManager,
     private val aiRepository: AiRepository,
+    private val yandexTranslate: YandexTranslateService,
     private val prefs: PreferencesManager
 ) {
 
@@ -221,9 +225,43 @@ class TranslationManager @Inject constructor(
     }
 
     /**
-     * Translate text using the AI repository with a translation prompt.
+     * Translate text using Yandex Translate API (primary, ~100-200ms)
+     * with LLM fallback (if Yandex API key not set or API fails).
      */
     private suspend fun translateText(text: String, from: String, to: String): String {
+        // Попробовать Yandex Translate — быстрый машинный перевод
+        val yandexKey = prefs.yandexApiKey.first()
+        if (yandexKey.isNotBlank()) {
+            try {
+                return translateWithYandex(text, from, to, yandexKey)
+            } catch (e: Exception) {
+                Log.w(TAG, "Yandex Translate failed, falling back to LLM", e)
+            }
+        }
+
+        // Fallback: LLM перевод (медленнее, но не требует отдельного ключа)
+        return translateWithLlm(text, from, to)
+    }
+
+    private suspend fun translateWithYandex(
+        text: String,
+        from: String,
+        to: String,
+        apiKey: String
+    ): String {
+        val response = yandexTranslate.translate(
+            auth = "Api-Key $apiKey",
+            request = YandexTranslateRequest(
+                sourceLanguageCode = from,
+                targetLanguageCode = to,
+                texts = listOf(text)
+            )
+        )
+        return response.translations.firstOrNull()?.text
+            ?: throw Exception("Пустой ответ от Yandex Translate")
+    }
+
+    private suspend fun translateWithLlm(text: String, from: String, to: String): String {
         val langNameFrom = languageDisplayName(from)
         val langNameTo = languageDisplayName(to)
 
