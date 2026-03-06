@@ -4,10 +4,14 @@ import com.vzor.ai.data.local.PreferencesManager
 import com.vzor.ai.domain.model.NetworkType
 import com.vzor.ai.domain.model.RoutingContext
 import com.vzor.ai.domain.model.RoutingDecision
+import com.vzor.ai.speech.AudioContext
+import com.vzor.ai.speech.AudioContextDetector
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -131,6 +135,73 @@ class BackendRouterTest {
         // OTHER_WIFI + X2 unavailable → CLOUD
         val ctx = routingContext(network = NetworkType.WIFI, battery = 80, x2Available = false)
         assertEquals(RoutingDecision.CLOUD, routerWithProfile.route(ctx))
+    }
+
+    // --- X2 memory pressure ---
+
+    @Test
+    fun `X2 memory pressure routes to CLOUD even when X2 available`() {
+        val modelManager = mockk<ModelRuntimeManager> {
+            every { usedMemoryMb } returns MutableStateFlow(90_000) // > 86400 threshold
+            every { getLoadedModels() } returns emptyList()
+        }
+        val routerWithModels = BackendRouter(
+            mockk<PreferencesManager>(relaxed = true),
+            null,
+            null,
+            modelManager
+        )
+        val ctx = routingContext(network = NetworkType.WIFI, battery = 80, x2Available = true, x2Queue = 100)
+        assertEquals(RoutingDecision.CLOUD, routerWithModels.route(ctx))
+    }
+
+    @Test
+    fun `X2 without memory pressure routes to LOCAL_AI`() {
+        val modelManager = mockk<ModelRuntimeManager> {
+            every { usedMemoryMb } returns MutableStateFlow(50_000) // < 86400 threshold
+            every { getLoadedModels() } returns emptyList()
+        }
+        val routerWithModels = BackendRouter(
+            mockk<PreferencesManager>(relaxed = true),
+            null,
+            null,
+            modelManager
+        )
+        val ctx = routingContext(network = NetworkType.WIFI, battery = 80, x2Available = true, x2Queue = 100)
+        assertEquals(RoutingDecision.LOCAL_AI, routerWithModels.route(ctx))
+    }
+
+    // --- AudioContextDetector integration ---
+
+    @Test
+    fun `shouldSuppressStt is true during music`() {
+        val audioDetector = mockk<AudioContextDetector> {
+            every { currentContext } returns MutableStateFlow(AudioContext.MUSIC)
+        }
+        val routerWithAudio = BackendRouter(
+            mockk<PreferencesManager>(relaxed = true),
+            null,
+            audioDetector
+        )
+        assertTrue(routerWithAudio.shouldSuppressStt)
+    }
+
+    @Test
+    fun `shouldSuppressStt is false during speech`() {
+        val audioDetector = mockk<AudioContextDetector> {
+            every { currentContext } returns MutableStateFlow(AudioContext.SPEECH)
+        }
+        val routerWithAudio = BackendRouter(
+            mockk<PreferencesManager>(relaxed = true),
+            null,
+            audioDetector
+        )
+        assertFalse(routerWithAudio.shouldSuppressStt)
+    }
+
+    @Test
+    fun `shouldSuppressStt is false without detector`() {
+        assertFalse(router.shouldSuppressStt)
     }
 
     // --- Helper ---

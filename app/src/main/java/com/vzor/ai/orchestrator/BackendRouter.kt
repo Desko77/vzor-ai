@@ -30,7 +30,8 @@ import javax.inject.Singleton
 class BackendRouter @Inject constructor(
     private val prefs: PreferencesManager,
     private val connectionProfileManager: ConnectionProfileManager? = null,
-    private val audioContextDetector: AudioContextDetector? = null
+    private val audioContextDetector: AudioContextDetector? = null,
+    private val modelRuntimeManager: ModelRuntimeManager? = null
 ) {
     companion object {
         /** Maximum acceptable queue wait time on EVO X2 before falling back to cloud. */
@@ -38,6 +39,9 @@ class BackendRouter @Inject constructor(
 
         /** Battery level below which we prefer cloud to save device resources. */
         private const val LOW_BATTERY_THRESHOLD = 20
+
+        /** Порог использования памяти X2 (%), при котором переходим на cloud. */
+        private const val X2_MEMORY_PRESSURE_THRESHOLD = 0.9f
     }
 
     /**
@@ -61,6 +65,26 @@ class BackendRouter @Inject constructor(
     val shouldSuppressStt: Boolean
         get() = audioContextDetector?.currentContext?.value == AudioContext.MUSIC
 
+    /** Загруженные модели на X2 (для UI/диагностики). */
+    val loadedModels: List<ModelSlot>
+        get() = modelRuntimeManager?.getLoadedModels() ?: emptyList()
+
+    /** Используемая память на X2 (MB). */
+    val x2UsedMemoryMb: Int
+        get() = modelRuntimeManager?.usedMemoryMb?.value ?: 0
+
+    /**
+     * X2 под давлением памяти — если загружено > 90% лимита,
+     * предпочитаем cloud для снижения нагрузки.
+     */
+    private val isX2MemoryPressure: Boolean
+        get() {
+            val manager = modelRuntimeManager ?: return false
+            val used = manager.usedMemoryMb.value
+            // Приблизительный лимит: если > 90% от default 96GB
+            return used > 86_400 // 96000 * 0.9
+        }
+
     fun route(context: RoutingContext): RoutingDecision {
         // 1. Offline → on-device offline backend
         if (context.networkType == NetworkType.OFFLINE) {
@@ -72,7 +96,12 @@ class BackendRouter @Inject constructor(
             return RoutingDecision.CLOUD
         }
 
-        // 3. HOME_WIFI + X2 available → предпочитаем local AI (автопереключение)
+        // 3. X2 memory pressure → cloud (даже если доступен, чтобы не усугубить)
+        if (context.x2Available && isX2MemoryPressure) {
+            return RoutingDecision.CLOUD
+        }
+
+        // 4. HOME_WIFI + X2 available → предпочитаем local AI (автопереключение)
         val profile = connectionProfileManager?.currentProfile?.value
         if (profile == ConnectionProfile.HOME_WIFI &&
             context.x2Available &&
