@@ -76,5 +76,23 @@
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
 
+# --- SQLCipher ---
+-keep class net.zetetic.database.** { *; }
+-dontwarn net.zetetic.database.**
+-keep class net.sqlcipher.** { *; }
+-dontwarn net.sqlcipher.**
+
+# --- MediaPipe ---
+-keep class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+
+# --- ML Kit ---
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
+# --- Meta Wearables DAT SDK ---
+-keep class com.meta.wearable.** { *; }
+-dontwarn com.meta.wearable.**
+
 # --- Vzor domain models ---
 -keep class com.vzor.ai.domain.model.** { *; }
