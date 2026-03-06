@@ -81,8 +81,9 @@ class BackendRouter @Inject constructor(
         get() {
             val manager = modelRuntimeManager ?: return false
             val used = manager.usedMemoryMb.value
-            // Приблизительный лимит: если > 90% от default 96GB
-            return used > 86_400 // 96000 * 0.9
+            val limit = manager.totalMemoryMb?.value ?: return false
+            if (limit <= 0) return false
+            return used.toFloat() / limit > X2_MEMORY_PRESSURE_THRESHOLD
         }
 
     fun route(context: RoutingContext): RoutingDecision {
@@ -110,12 +111,12 @@ class BackendRouter @Inject constructor(
             return RoutingDecision.LOCAL_AI
         }
 
-        // 4. Wi-Fi but X2 unavailable → cloud
+        // 5. Wi-Fi but X2 unavailable → cloud
         if (context.networkType == NetworkType.WIFI && !context.x2Available) {
             return RoutingDecision.CLOUD
         }
 
-        // 4. Wi-Fi, X2 available, queue ok → local AI
+        // 6. Wi-Fi, X2 available, queue ok → local AI
         if (context.networkType == NetworkType.WIFI &&
             context.x2Available &&
             context.x2QueueWaitMs < X2_QUEUE_THRESHOLD_MS
@@ -123,7 +124,7 @@ class BackendRouter @Inject constructor(
             return RoutingDecision.LOCAL_AI
         }
 
-        // 5. Wi-Fi, X2 available but overloaded → cloud
+        // 7. Wi-Fi, X2 available but overloaded → cloud
         if (context.networkType == NetworkType.WIFI &&
             context.x2Available &&
             context.x2QueueWaitMs >= X2_QUEUE_THRESHOLD_MS
@@ -131,7 +132,7 @@ class BackendRouter @Inject constructor(
             return RoutingDecision.CLOUD
         }
 
-        // 6. LTE or any other case → cloud
+        // 8. LTE or any other case → cloud
         return RoutingDecision.CLOUD
     }
 }

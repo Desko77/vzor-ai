@@ -71,6 +71,7 @@ class YandexSttService @Inject constructor(
     override val isListening: Boolean
         get() = _isListening
 
+    @Volatile
     private var activeWebSocket: WebSocket? = null
 
     private val httpClient = OkHttpClient.Builder()
@@ -127,11 +128,18 @@ class YandexSttService @Inject constructor(
                 val code = response?.code
                 Log.e(TAG, "WebSocket failure (HTTP $code): ${t.message}")
 
-                // Fallback to REST v1 if WebSocket fails
+                // Fallback to REST v1 if WebSocket fails before config
                 if (!configSent) {
                     Log.w(TAG, "WebSocket connection failed, falling back to REST v1")
                     launch(Dispatchers.IO) {
-                        fallbackToRestV1(apiKey)
+                        try {
+                            val results = fallbackToRestV1(apiKey)
+                            results.forEach { trySend(it) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "REST v1 fallback also failed", e)
+                        } finally {
+                            close()
+                        }
                     }
                 } else {
                     close(t)
@@ -192,6 +200,7 @@ class YandexSttService @Inject constructor(
                     Log.d(TAG, "Max recording duration reached, stopping")
                     _isListening = false
                     audioStreamHandler.stop()
+                    return@collect
                 }
             }
         } catch (e: Exception) {
