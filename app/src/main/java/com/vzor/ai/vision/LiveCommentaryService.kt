@@ -69,6 +69,7 @@ class LiveCommentaryService @Inject constructor(
         _isActive.value = true
 
         frameSampler.setMode(SamplingMode.LOW)
+        frameSampler.setAdaptiveMode(true)
 
         commentaryJob = scope.launch {
             var previousScene = visionRouter.getCachedScene()
@@ -92,6 +93,8 @@ class LiveCommentaryService @Inject constructor(
                         val events = eventBuilder.detectEvents(previousScene, currentScene)
 
                         if (events.isNotEmpty()) {
+                            // Уведомляем FrameSampler для адаптивного повышения FPS
+                            events.forEach { _ -> frameSampler.onVisionEvent() }
                             val commentary = buildCommentary(events)
                             _lastCommentary.value = commentary
                             ttsService.speak(commentary)
@@ -122,6 +125,7 @@ class LiveCommentaryService @Inject constructor(
         commentaryScope?.cancel()
         commentaryScope = null
         frameSampler.setMode(SamplingMode.IDLE)
+        frameSampler.setAdaptiveMode(false)
         _isActive.value = false
     }
 
