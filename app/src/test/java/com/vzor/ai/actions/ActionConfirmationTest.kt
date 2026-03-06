@@ -3,6 +3,7 @@ package com.vzor.ai.actions
 import com.vzor.ai.domain.model.IntentType
 import com.vzor.ai.domain.model.VzorIntent
 import kotlinx.coroutines.async
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -50,6 +51,7 @@ class ActionConfirmationTest {
         val callIntent = intent(IntentType.CALL_CONTACT, mapOf("contact" to "Мама"))
 
         val result = async { confirmation.requestConfirmation(callIntent) }
+        advanceUntilIdle()
 
         // Verify pending action is set
         assertNotNull(confirmation.pendingAction.value)
@@ -65,6 +67,7 @@ class ActionConfirmationTest {
         val callIntent = intent(IntentType.CALL_CONTACT, mapOf("contact" to "Работа"))
 
         val result = async { confirmation.requestConfirmation(callIntent) }
+        advanceUntilIdle()
         confirmation.deny()
         assertFalse(result.await())
     }
@@ -74,6 +77,7 @@ class ActionConfirmationTest {
         val msgIntent = intent(IntentType.SEND_MESSAGE, mapOf("contact" to "Петя"))
 
         val result = async { confirmation.requestConfirmation(msgIntent) }
+        advanceUntilIdle()
         confirmation.confirm()
         result.await()
 
@@ -89,6 +93,7 @@ class ActionConfirmationTest {
         )
 
         val result = async { confirmation.requestConfirmation(msgIntent) }
+        advanceUntilIdle()
         val desc = confirmation.pendingAction.value?.description ?: ""
         assertTrue(desc.contains("Алиса"))
         assertTrue(desc.contains("WhatsApp"))
@@ -101,6 +106,7 @@ class ActionConfirmationTest {
         val navIntent = intent(IntentType.NAVIGATE, mapOf("destination" to "Домой"))
 
         val result = async { confirmation.requestConfirmation(navIntent) }
+        advanceUntilIdle()
         val desc = confirmation.pendingAction.value?.description ?: ""
         assertTrue(desc.contains("Домой"))
         confirmation.deny()
