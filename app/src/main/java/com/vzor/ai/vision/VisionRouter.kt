@@ -68,9 +68,10 @@ class VisionRouter @Inject constructor(
         prompt: String,
         forceRefresh: Boolean = false
     ): Result<SceneData> {
-        // 1. MediaPipe: быстрое on-device обнаружение лиц и объектов
+        // 1. MediaPipe: быстрое on-device обнаружение лиц, объектов и жестов
         val faces = mediaPipeProcessor.detectFaces(imageBytes)
         val mpObjects = mediaPipeProcessor.detectObjects(imageBytes)
+        val gestures = mediaPipeProcessor.detectGestures(imageBytes)
 
         // 2. ML Kit OCR для текстовых запросов
         if (onDeviceProcessor.isTextQuery(prompt)) {
@@ -85,6 +86,7 @@ class VisionRouter @Inject constructor(
                     objects = mpObjects.map { DetectedObject(it.label, it.confidence) },
                     text = ocrResult.blocks.map { it.text },
                     faceCount = faces.size,
+                    gestures = gestures,
                     stability = 0.9f,
                     ttlMs = PerceptionCache.DefaultTtl.TEXT_MS
                 )
@@ -97,6 +99,7 @@ class VisionRouter @Inject constructor(
         return analyzeScene(imageBytes, prompt, forceRefresh).map { sceneData ->
             sceneData.copy(
                 faceCount = faces.size,
+                gestures = gestures,
                 objects = sceneData.objects + mpObjects.map { DetectedObject(it.label, it.confidence) }
             )
         }
