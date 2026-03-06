@@ -113,6 +113,11 @@ dependencies {
     // MediaPipe (face/object detection)
     implementation(libs.mediapipe.vision)
 
+    // Meta Wearables DAT SDK
+    implementation(libs.mwdat.core)
+    implementation(libs.mwdat.camera)
+    testImplementation(libs.mwdat.mockdevice)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

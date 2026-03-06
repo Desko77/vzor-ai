@@ -51,7 +51,7 @@ class ModelRuntimeManagerTest {
 
     @Test
     fun `requestLoad evicts lower priority models when needed`() = runTest {
-        manager.setMemoryLimit(20000) // Only 20GB
+        manager.setMemoryLimit(19000) // Only 19GB — not enough for all three
         manager.registerModel("clip", ModelPriority.CLIP, 600)
         manager.registerModel("yolo", ModelPriority.OBJECT_DETECTION, 500)
         manager.registerModel("qwen-9b", ModelPriority.LLM, 18000)
