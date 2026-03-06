@@ -238,8 +238,12 @@ class ToolRegistry @Inject constructor(
         val from = args["from"] ?: "ru"
         val to = args["to"] ?: "en"
 
-        // TODO: добавить public translateText(text, from, to) в TranslationManager
-        return ToolResult(false, "translate tool пока не реализован (текст: '$text', $from → $to)")
+        return try {
+            val translated = translationManager.translateText(text, from, to)
+            ToolResult(true, translated)
+        } catch (e: Exception) {
+            ToolResult(false, "Ошибка перевода: ${e.message}")
+        }
     }
 
     private suspend fun executeActionCall(args: Map<String, String>): ToolResult {

@@ -7,6 +7,7 @@ import com.vzor.ai.domain.model.AiProvider
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
 import com.vzor.ai.domain.repository.AiRepository
+import com.vzor.ai.orchestrator.ToolCallWithResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -58,6 +59,9 @@ class AiRepositoryImpl @Inject constructor(
             AiProvider.CLAUDE -> {
                 streamClaudeWithTools(messages, tools).collect { emit(it) }
             }
+            AiProvider.OPENAI -> {
+                streamOpenAiWithTools(messages, tools).collect { emit(it) }
+            }
             else -> {
                 // Для остальных провайдеров — оборачиваем текстовый стрим в StreamChunk.Text
                 streamMessage(messages).collect { emit(StreamChunk.Text(it)) }
@@ -104,6 +108,103 @@ class AiRepositoryImpl @Inject constructor(
                 system = systemPrompt,
                 messages = claudeMessages,
                 tools = tools.ifEmpty { null }
+            )
+        )
+    }
+
+    override fun streamToolContinuation(
+        messages: List<Message>,
+        tools: List<ClaudeTool>,
+        toolResults: List<ToolCallWithResult>
+    ): Flow<StreamChunk> = flow {
+        val apiKey = prefs.claudeApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
+
+        val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
+        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
+
+        // Построить Claude messages + tool_use (assistant) + tool_result (user)
+        val claudeMessages = chatMessages.map { msg ->
+            if (msg.imageData != null) {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = listOf(
+                        ClaudeContentBlock(
+                            type = "image",
+                            source = ClaudeImageSource(
+                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                            )
+                        ),
+                        ClaudeContentBlock(type = "text", text = msg.content)
+                    )
+                )
+            } else {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = msg.content
+                )
+            }
+        }.toMutableList()
+
+        // Добавить assistant message с tool_use блоками
+        val toolUseBlocks = toolResults.map { tr ->
+            mapOf(
+                "type" to "tool_use",
+                "id" to tr.toolCallId,
+                "name" to tr.toolName,
+                "input" to tr.arguments
+            )
+        }
+        claudeMessages.add(ClaudeMessage(role = "assistant", content = toolUseBlocks))
+
+        // Добавить user message с tool_result блоками
+        val toolResultBlocks = toolResults.map { tr ->
+            mapOf(
+                "type" to "tool_result",
+                "tool_use_id" to tr.toolCallId,
+                "content" to tr.result.output
+            )
+        }
+        claudeMessages.add(ClaudeMessage(role = "user", content = toolResultBlocks))
+
+        claudeStreamingClient.streamChunks(
+            apiKey = apiKey,
+            request = ClaudeRequest(
+                system = systemPrompt,
+                messages = claudeMessages,
+                tools = tools.ifEmpty { null }
+            )
+        ).collect { emit(it) }
+    }
+
+    private suspend fun streamOpenAiWithTools(
+        messages: List<Message>,
+        claudeTools: List<ClaudeTool>
+    ): Flow<StreamChunk> {
+        val apiKey = prefs.openAiApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ OpenAI не указан" }
+
+        // Конвертируем Claude tool формат → OpenAI tool формат
+        val openAiTools = claudeTools.map { ct ->
+            OpenAiToolDef(
+                function = OpenAiFunctionDef(
+                    name = ct.name,
+                    description = ct.description,
+                    parameters = OpenAiFunctionParams(
+                        properties = ct.inputSchema.properties.mapValues { (_, prop) ->
+                            OpenAiFunctionProp(type = prop.type, description = prop.description)
+                        },
+                        required = ct.inputSchema.required
+                    )
+                )
+            )
+        }
+
+        return openAiStreamingClient.streamChunks(
+            apiKey = apiKey,
+            request = OpenAiChatRequest(
+                messages = buildOpenAiMessages(messages),
+                tools = openAiTools.ifEmpty { null }
             )
         )
     }

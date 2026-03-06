@@ -33,7 +33,34 @@ data class OpenAiChatRequest(
     val model: String = "gpt-4o",
     val messages: List<OpenAiMessage>,
     @Json(name = "max_tokens") val maxTokens: Int = 4096,
-    val stream: Boolean = false
+    val stream: Boolean = false,
+    val tools: List<OpenAiToolDef>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenAiToolDef(
+    val type: String = "function",
+    val function: OpenAiFunctionDef
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenAiFunctionDef(
+    val name: String,
+    val description: String,
+    val parameters: OpenAiFunctionParams
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenAiFunctionParams(
+    val type: String = "object",
+    val properties: Map<String, OpenAiFunctionProp> = emptyMap(),
+    val required: List<String> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenAiFunctionProp(
+    val type: String = "string",
+    val description: String = ""
 )
 
 @JsonClass(generateAdapter = true)

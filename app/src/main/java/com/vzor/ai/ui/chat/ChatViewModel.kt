@@ -181,11 +181,15 @@ class ChatViewModel @Inject constructor(
 
             val responseBuilder = StringBuilder()
 
-            // Tool-augmented streaming: Claude получает описания инструментов,
-            // ToolCallProcessor перехватывает tool_use и выполняет через ToolRegistry
+            // Tool-augmented streaming с multi-turn loop:
+            // Claude получает описания инструментов, ToolCallProcessor
+            // перехватывает tool_use, выполняет, и шлёт tool_result обратно
             val tools = toolCallProcessor.buildClaudeTools()
             val chunksFlow = aiRepository.streamWithTools(messagesForApi, tools)
-            val textFlow = toolCallProcessor.processStream(chunksFlow)
+            val textFlow = toolCallProcessor.processStreamMultiTurn(chunksFlow) { toolResults ->
+                // Continuation: отправить tool_result обратно LLM
+                aiRepository.streamToolContinuation(messagesForApi, tools, toolResults)
+            }
 
             textFlow
                 .catch { e ->

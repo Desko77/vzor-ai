@@ -115,7 +115,6 @@ class ToolCallProcessorTest {
 
     @Test
     fun `buildClaudeTools returns correct tool count`() {
-        // toolRegistry.toolDescriptions is accessed directly
         coEvery { toolRegistry.toolDescriptions } returns listOf(
             ToolDescription("test.tool", "Test", mapOf("param" to "string: Test"))
         )
@@ -125,5 +124,130 @@ class ToolCallProcessorTest {
         assertEquals(1, tools.size)
         assertEquals("test.tool", tools[0].name)
         assertEquals("object", tools[0].inputSchema.type)
+    }
+
+    // --- Multi-turn tool loop ---
+
+    @Test
+    fun `processStreamMultiTurn executes tool and continues with LLM`() = runTest {
+        coEvery {
+            toolRegistry.executeTool("memory.get", mapOf("query" to "парковка"))
+        } returns ToolResult(true, "Ленина 15")
+
+        val initialChunks = flowOf(
+            StreamChunk.ToolCall("tc_1", "memory.get", mapOf("query" to "парковка")),
+            StreamChunk.Done("tool_use")
+        )
+
+        // Continuation: LLM получил tool_result и отвечает текстом
+        val continuationChunks = flowOf(
+            StreamChunk.Text("Вы припарковались на "),
+            StreamChunk.Text("Ленина 15."),
+            StreamChunk.Done("end_turn")
+        )
+
+        val result = processor.processStreamMultiTurn(initialChunks) { toolResults ->
+            assertEquals(1, toolResults.size)
+            assertEquals("memory.get", toolResults[0].toolName)
+            assertEquals("Ленина 15", toolResults[0].result.output)
+            continuationChunks
+        }.toList()
+
+        assertEquals(2, result.size)
+        assertEquals("Вы припарковались на ", result[0])
+        assertEquals("Ленина 15.", result[1])
+    }
+
+    @Test
+    fun `processStreamMultiTurn handles two iterations of tool use`() = runTest {
+        coEvery {
+            toolRegistry.executeTool("memory.get", any())
+        } returns ToolResult(true, "факт")
+
+        coEvery {
+            toolRegistry.executeTool("web.search", any())
+        } returns ToolResult(true, "поиск результат")
+
+        val initialChunks = flowOf(
+            StreamChunk.ToolCall("tc_1", "memory.get", mapOf("query" to "a")),
+            StreamChunk.Done("tool_use")
+        )
+
+        val secondChunks = flowOf(
+            StreamChunk.ToolCall("tc_2", "web.search", mapOf("query" to "b")),
+            StreamChunk.Done("tool_use")
+        )
+
+        val finalChunks = flowOf(
+            StreamChunk.Text("Итоговый ответ"),
+            StreamChunk.Done("end_turn")
+        )
+
+        var callCount = 0
+        val result = processor.processStreamMultiTurn(initialChunks) {
+            callCount++
+            if (callCount == 1) secondChunks else finalChunks
+        }.toList()
+
+        assertEquals(2, callCount) // Two continuations
+        assertEquals(1, result.size)
+        assertEquals("Итоговый ответ", result[0])
+    }
+
+    @Test
+    fun `processStreamMultiTurn passes text from first iteration through`() = runTest {
+        coEvery {
+            toolRegistry.executeTool("memory.get", any())
+        } returns ToolResult(true, "ok")
+
+        val initialChunks = flowOf(
+            StreamChunk.Text("Подожди, "),
+            StreamChunk.ToolCall("tc_1", "memory.get", mapOf("query" to "a")),
+            StreamChunk.Done("tool_use")
+        )
+
+        val continuationChunks = flowOf(
+            StreamChunk.Text("Готово!"),
+            StreamChunk.Done("end_turn")
+        )
+
+        val result = processor.processStreamMultiTurn(initialChunks) { continuationChunks }.toList()
+
+        assertEquals(2, result.size)
+        assertEquals("Подожди, ", result[0])
+        assertEquals("Готово!", result[1])
+    }
+
+    @Test
+    fun `processStreamMultiTurn exits immediately for text-only stream`() = runTest {
+        val chunks = flowOf(
+            StreamChunk.Text("Просто текст"),
+            StreamChunk.Done("end_turn")
+        )
+
+        var continuationCalled = false
+        val result = processor.processStreamMultiTurn(chunks) {
+            continuationCalled = true
+            flowOf(StreamChunk.Done("end_turn"))
+        }.toList()
+
+        assertFalse(continuationCalled)
+        assertEquals(1, result.size)
+        assertEquals("Просто текст", result[0])
+    }
+
+    // --- ToolCallWithResult ---
+
+    @Test
+    fun `ToolCallWithResult stores correct data`() {
+        val result = ToolCallWithResult(
+            toolCallId = "tc_abc",
+            toolName = "web.search",
+            arguments = mapOf("query" to "test"),
+            result = ToolResult(true, "found it")
+        )
+        assertEquals("tc_abc", result.toolCallId)
+        assertEquals("web.search", result.toolName)
+        assertTrue(result.result.success)
     }
 }
