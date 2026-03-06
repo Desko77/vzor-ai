@@ -15,14 +15,15 @@
 import com.meta.wearable.dat.core.Wearables              // Главный entry point (singleton)
 import com.meta.wearable.dat.core.selectors.AutoDeviceSelector  // Автоселектор устройства
 import com.meta.wearable.dat.core.types.Permission              // Permission.CAMERA
-import com.meta.wearable.dat.core.types.PermissionStatus        // GRANTED / NOT_GRANTED
-import com.meta.wearable.dat.core.types.RegistrationState       // REGISTERED / NOT_REGISTERED
+import com.meta.wearable.dat.core.types.PermissionStatus        // Sealed: Granted / Denied
+import com.meta.wearable.dat.core.types.RegistrationState       // Sealed: Unavailable/Available/Registering/Registered/Unregistering
+import com.meta.wearable.dat.core.types.DatResult               // Result<T, E> type (since 0.3.0)
 
 // Camera
 import com.meta.wearable.dat.camera.StreamSession                // Сессия стриминга
 import com.meta.wearable.dat.camera.types.StreamConfiguration    // quality + fps
 import com.meta.wearable.dat.camera.types.StreamSessionState     // STREAMING / STOPPED
-import com.meta.wearable.dat.camera.types.VideoFrame             // Кадр (ByteBuffer)
+import com.meta.wearable.dat.camera.types.VideoFrame             // Кадр (I420 YUV в ByteBuffer, width, height, presentationTimeUs)
 import com.meta.wearable.dat.camera.types.VideoQuality           // LOW / MEDIUM / HIGH
 import com.meta.wearable.dat.camera.types.PhotoData              // Результат capturePhoto()
 ```
@@ -37,25 +38,28 @@ Wearables.initialize(context)
 
 ### 2. Регистрация устройства
 ```kotlin
-// Запуск регистрации (открывает Meta AI companion app)
-Wearables.startRegistration(context)
+// ⚠️ DAT SDK 0.4.0: требуется Activity, не Context!
+Wearables.startRegistration(activity)
 
 // Наблюдение за состоянием
 Wearables.registrationState.collectLatest { state ->
-    // RegistrationState.REGISTERED / NOT_REGISTERED
+    // Sealed class: Unavailable, Available, Registering, Registered, Unregistering
 }
 
 // Отвязать устройство
-Wearables.startUnregistration(context)
+Wearables.startUnregistration(activity)
 ```
 
 ### 3. Проверка разрешений
 ```kotlin
-val status = Wearables.checkPermissionStatus(Permission.CAMERA)
-if (status == PermissionStatus.GRANTED) {
+// checkPermissionStatus возвращает DatResult<PermissionStatus, PermissionError>
+val result = Wearables.checkPermissionStatus(Permission.CAMERA)
+val status = result.getOrNull()
+if (status == PermissionStatus.Granted) {  // Sealed class, не enum!
     // Камера доступна
 } else {
     // Запросить через Wearables.RequestPermissionContract()
+    // requestPermissionLauncher.launch(Permission.CAMERA)
 }
 ```
 
@@ -87,9 +91,23 @@ session.videoStream.collectLatest { frame: VideoFrame ->
 
 ### 5. Фото
 ```kotlin
-val photo: PhotoData? = session.capturePhoto()
-// photo.bitmap — Bitmap (JPEG → compress(JPEG, 90, stream))
-// photo.bytes — raw bytes (HEIC или JPEG)
+// capturePhoto() возвращает Result<PhotoData>
+session.capturePhoto()
+    ?.onSuccess { photoData ->
+        when (photoData) {
+            is PhotoData.Bitmap -> {
+                // Прямой Bitmap → compress(JPEG, 90, stream)
+                photoData.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            }
+            is PhotoData.HEIC -> {
+                // Raw HEIC bytes в ByteBuffer
+                val bytes = ByteArray(photoData.data.remaining())
+                photoData.data.get(bytes)
+                // Decode через BitmapFactory или использовать напрямую
+            }
+        }
+    }
+    ?.onFailure { error -> Log.e(TAG, "Photo capture failed: $error") }
 ```
 
 ### 6. Закрытие
@@ -112,6 +130,29 @@ session.close()
     <category android:name="android.intent.category.BROWSABLE" />
     <data android:scheme="vzor-ai" android:host="wearables-callback" />
 </intent-filter>
+```
+
+## VideoFrame обработка (I420 → JPEG)
+
+**ВАЖНО:** `VideoFrame.buffer` содержит I420 YUV данные, НЕ JPEG!
+
+```kotlin
+// 1. Извлечь I420 bytes из VideoFrame
+val buffer = frame.buffer
+val i420Bytes = ByteArray(buffer.remaining())
+buffer.get(i420Bytes)
+buffer.position(originalPosition) // restore для переиспользования SDK
+
+// 2. Конвертировать I420 → NV21 (Android формат)
+// I420: [Y][U][V] (planar)
+// NV21: [Y][VU interleaved] (semi-planar)
+val nv21 = convertI420toNV21(i420Bytes, frame.width, frame.height)
+
+// 3. NV21 → JPEG через YuvImage
+val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+val out = ByteArrayOutputStream()
+yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out) // 50% для стриминга
+val jpegBytes = out.toByteArray()
 ```
 
 ## Ограничения BT Classic

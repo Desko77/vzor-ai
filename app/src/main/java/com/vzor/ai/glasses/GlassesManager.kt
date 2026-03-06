@@ -13,6 +13,10 @@ import android.content.IntentFilter
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
+import android.app.Activity
+import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.util.Log
 import com.meta.wearable.dat.camera.StreamSession
 import com.meta.wearable.dat.camera.types.PhotoData
@@ -148,11 +152,23 @@ class GlassesManager @Inject constructor(
     }
 
     /**
+     * Запускает регистрацию DAT SDK из Activity.
+     * Требуется Activity context для DAT SDK 0.4.0+.
+     */
+    fun startRegistration(activity: Activity) {
+        initializeDatSdk()
+        if (!_registrationState.value) {
+            Wearables.startRegistration(activity)
+            Log.d(TAG, "DAT registration started from Activity")
+        }
+    }
+
+    /**
      * Отменяет регистрацию DAT SDK (отвязывает очки от приложения).
      */
-    fun unregisterDat() {
+    fun unregisterDat(activity: Activity) {
         if (isDatInitialized) {
-            Wearables.startUnregistration(context)
+            Wearables.startUnregistration(activity)
             Log.d(TAG, "DAT unregistration started")
         }
     }
@@ -222,9 +238,16 @@ class GlassesManager @Inject constructor(
             initializeDatSdk()
 
             // Start DAT registration (opens Meta AI companion app flow)
+            // DAT SDK 0.4.0 requires Activity for registration
             if (!_registrationState.value) {
-                Wearables.startRegistration(context)
-                Log.d(TAG, "DAT registration started")
+                val activity = context as? Activity
+                if (activity != null) {
+                    Wearables.startRegistration(activity)
+                    Log.d(TAG, "DAT registration started")
+                } else {
+                    Log.w(TAG, "Cannot start DAT registration — Activity context required. " +
+                        "Call startRegistration(activity) explicitly from Activity.")
+                }
             }
 
             val adapter = bluetoothManager?.adapter
@@ -378,8 +401,10 @@ class GlassesManager @Inject constructor(
     fun hasCameraPermission(): Boolean {
         if (!isDatInitialized) return false
         return try {
-            val status = Wearables.checkPermissionStatus(DatPermission.CAMERA)
-            status == DatPermissionStatus.GRANTED
+            val result = Wearables.checkPermissionStatus(DatPermission.CAMERA)
+            // DatResult — проверяем через getOrNull()
+            val status = result.getOrNull()
+            status == DatPermissionStatus.Granted
         } catch (e: Exception) {
             Log.w(TAG, "Failed to check DAT camera permission", e)
             false
@@ -416,7 +441,15 @@ class GlassesManager @Inject constructor(
                 }
 
                 val photoResult = session.capturePhoto()
-                val photoBytes = photoResult?.let { extractPhotoBytes(it) }
+                var photoBytes: ByteArray? = null
+
+                photoResult
+                    ?.onSuccess { photoData ->
+                        photoBytes = extractPhotoBytes(photoData)
+                    }
+                    ?.onFailure { error ->
+                        Log.e(TAG, "Photo capture returned error: $error")
+                    }
 
                 // Если сессия была временная, закрываем
                 if (streamSession == null) {
@@ -424,8 +457,8 @@ class GlassesManager @Inject constructor(
                 }
 
                 if (photoBytes != null) {
-                    _cameraFrames.tryEmit(photoBytes)
-                    Log.d(TAG, "Photo captured: ${photoBytes.size} bytes")
+                    _cameraFrames.tryEmit(photoBytes!!)
+                    Log.d(TAG, "Photo captured: ${photoBytes!!.size} bytes")
                 }
 
                 photoBytes
@@ -674,14 +707,28 @@ class GlassesManager @Inject constructor(
     }
 
     /**
-     * Извлекает JPEG bytes из VideoFrame DAT SDK.
+     * Конвертирует VideoFrame (I420 YUV) в JPEG bytes.
+     *
+     * VideoFrame.buffer содержит I420 YUV данные, которые нужно
+     * сконвертировать в NV21, затем в JPEG через YuvImage.
      */
     private fun extractFrameBytes(frame: VideoFrame): ByteArray? {
         return try {
             val buffer = frame.buffer
-            val bytes = ByteArray(buffer.remaining())
-            buffer.get(bytes)
-            bytes
+            val originalPosition = buffer.position()
+            val i420Bytes = ByteArray(buffer.remaining())
+            buffer.get(i420Bytes)
+            buffer.position(originalPosition) // restore position for SDK reuse
+
+            val width = frame.width
+            val height = frame.height
+
+            // Конвертация I420 → NV21 для Android YuvImage
+            val nv21 = convertI420toNV21(i420Bytes, width, height)
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+            val out = ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out)
+            out.toByteArray()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract frame bytes", e)
             null
@@ -689,17 +736,61 @@ class GlassesManager @Inject constructor(
     }
 
     /**
+     * Конвертирует I420 (YUV 4:2:0 planar) в NV21 (YUV 4:2:0 semi-planar).
+     *
+     * I420 layout: [Y plane][U plane][V plane]
+     * NV21 layout: [Y plane][V U interleaved]
+     */
+    private fun convertI420toNV21(i420: ByteArray, width: Int, height: Int): ByteArray {
+        val ySize = width * height
+        val uvSize = ySize / 4
+        val nv21 = ByteArray(ySize + uvSize * 2)
+
+        // Copy Y plane
+        System.arraycopy(i420, 0, nv21, 0, ySize)
+
+        // Interleave U and V planes: V first (NV21), then U
+        val uOffset = ySize
+        val vOffset = ySize + uvSize
+        var nv21Offset = ySize
+
+        for (i in 0 until uvSize) {
+            nv21[nv21Offset++] = i420[vOffset + i] // V
+            nv21[nv21Offset++] = i420[uOffset + i] // U
+        }
+
+        return nv21
+    }
+
+    /**
      * Извлекает JPEG bytes из PhotoData DAT SDK.
+     *
+     * PhotoData — sealed class:
+     * - PhotoData.Bitmap → compress to JPEG
+     * - PhotoData.HEIC → extract raw bytes (decode если нужно)
      */
     private fun extractPhotoBytes(photo: PhotoData): ByteArray? {
         return try {
-            val bitmap = photo.bitmap
-            if (bitmap != null) {
-                val stream = ByteArrayOutputStream()
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, stream)
-                stream.toByteArray()
-            } else {
-                photo.bytes
+            when (photo) {
+                is PhotoData.Bitmap -> {
+                    val stream = ByteArrayOutputStream()
+                    photo.bitmap.compress(
+                        android.graphics.Bitmap.CompressFormat.JPEG,
+                        90,
+                        stream
+                    )
+                    stream.toByteArray()
+                }
+                is PhotoData.HEIC -> {
+                    val data = photo.data
+                    val bytes = ByteArray(data.remaining())
+                    data.get(bytes)
+                    bytes
+                }
+                else -> {
+                    Log.w(TAG, "Unknown PhotoData type: ${photo::class.simpleName}")
+                    null
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract photo bytes", e)
