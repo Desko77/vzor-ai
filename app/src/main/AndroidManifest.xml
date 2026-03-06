@@ -53,6 +53,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VzorAi">
 
+        <!-- Meta Wearables DAT SDK: APPLICATION_ID (0 = Developer Mode) -->
+        <meta-data
+            android:name="com.meta.wearable.mwdat.APPLICATION_ID"
+            android:value="0" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -60,6 +65,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- DAT SDK callback URI scheme for Meta AI app registration flow -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vzor-ai" android:host="wearables-callback" />
             </intent-filter>
         </activity>
 

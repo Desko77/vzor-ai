@@ -14,6 +14,17 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.util.Log
+import com.meta.wearable.dat.camera.StreamSession
+import com.meta.wearable.dat.camera.types.PhotoData
+import com.meta.wearable.dat.camera.types.StreamConfiguration
+import com.meta.wearable.dat.camera.types.StreamSessionState
+import com.meta.wearable.dat.camera.types.VideoFrame
+import com.meta.wearable.dat.camera.types.VideoQuality
+import com.meta.wearable.dat.core.Wearables
+import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
+import com.meta.wearable.dat.core.types.Permission as DatPermission
+import com.meta.wearable.dat.core.types.PermissionStatus as DatPermissionStatus
+import com.meta.wearable.dat.core.types.RegistrationState
 import com.vzor.ai.domain.model.GlassesState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellableContinuation
@@ -28,27 +39,26 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 
 /**
- * Manages connection to Meta Ray-Ban glasses via Bluetooth HFP profile.
+ * Manages connection to Meta Ray-Ban glasses via Meta Wearables DAT SDK
+ * with Bluetooth HFP fallback for audio.
  *
- * Architecture (VisionClaw-based):
- * - Uses StateFlow for reactive glasses state propagation
+ * Architecture:
+ * - DAT SDK handles device registration, camera streaming, photo capture
+ * - BT HFP used for audio routing (mic/speaker) independently
+ * - StateFlow for reactive glasses state propagation
  * - SharedFlow for audio/camera frame streaming with back-pressure handling
- * - BluetoothManager/BluetoothProfile for HFP connection lifecycle
- * - Foreground service-compatible: does not hold Activity references
- *
- * When the Meta Wearables DAT SDK becomes available, the connect/disconnect
- * methods and camera frame capture will delegate to the DAT SDK while
- * preserving the same public API surface.
  */
 @Singleton
 class GlassesManager @Inject constructor(
@@ -58,6 +68,7 @@ class GlassesManager @Inject constructor(
         private const val TAG = "GlassesManager"
         private const val BT_CONNECT_TIMEOUT_MS = 15_000L
         private const val SCO_CONNECT_TIMEOUT_MS = 10_000L
+        private const val DEFAULT_FRAME_RATE = 24
     }
 
     // --- Public state ---
@@ -69,9 +80,13 @@ class GlassesManager @Inject constructor(
     private val _audioFrames = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
     val audioFrames: SharedFlow<ByteArray> = _audioFrames.asSharedFlow()
 
-    /** Camera frames (JPEG bytes) from glasses camera. */
+    /** Camera frames (JPEG bytes) from glasses camera via DAT SDK. */
     private val _cameraFrames = MutableSharedFlow<ByteArray>(extraBufferCapacity = 8)
     val cameraFrames: SharedFlow<ByteArray> = _cameraFrames.asSharedFlow()
+
+    private val _registrationState = MutableStateFlow(false)
+    /** Зарегистрировано ли устройство через Meta DAT SDK. */
+    val isRegistered: StateFlow<Boolean> = _registrationState.asStateFlow()
 
     // --- Internal state ---
 
@@ -89,11 +104,58 @@ class GlassesManager @Inject constructor(
     private var connectedDevice: BluetoothDevice? = null
     private var audioCaptureJob: Job? = null
     private var cameraStreamJob: Job? = null
+    private var registrationObserverJob: Job? = null
+    private var streamStateObserverJob: Job? = null
     private val isAudioCapturing = java.util.concurrent.atomic.AtomicBoolean(false)
     private val isCameraStreaming = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private var scoReceiver: BroadcastReceiver? = null
     private var headsetReceiver: BroadcastReceiver? = null
+
+    /** Активная сессия камеры DAT SDK. */
+    private var streamSession: StreamSession? = null
+    private var isDatInitialized = false
+
+    // --- DAT SDK Initialization ---
+
+    /**
+     * Инициализирует Meta Wearables DAT SDK.
+     * Должен быть вызван при старте приложения (из Application.onCreate или Activity).
+     */
+    fun initializeDatSdk() {
+        if (isDatInitialized) return
+
+        try {
+            Wearables.initialize(context)
+            isDatInitialized = true
+            Log.d(TAG, "Meta Wearables DAT SDK initialized")
+
+            // Наблюдаем за состоянием регистрации
+            registrationObserverJob = scope.launch {
+                Wearables.registrationState.collectLatest { regState ->
+                    val isRegisteredNow = regState == RegistrationState.REGISTERED
+                    _registrationState.value = isRegisteredNow
+                    Log.d(TAG, "DAT registration state: $regState")
+
+                    if (isRegisteredNow && _state.value == GlassesState.CONNECTING) {
+                        _state.value = GlassesState.CONNECTED
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize DAT SDK", e)
+        }
+    }
+
+    /**
+     * Отменяет регистрацию DAT SDK (отвязывает очки от приложения).
+     */
+    fun unregisterDat() {
+        if (isDatInitialized) {
+            Wearables.startUnregistration(context)
+            Log.d(TAG, "DAT unregistration started")
+        }
+    }
 
     // --- Bluetooth HFP Profile Listener ---
 
@@ -138,16 +200,13 @@ class GlassesManager @Inject constructor(
     // -----------------------------------------------------------------
 
     /**
-     * Connect to glasses via Bluetooth HFP profile.
+     * Connect to glasses via DAT SDK registration + Bluetooth HFP for audio.
      *
      * Steps:
-     * 1. Obtain BluetoothAdapter and verify BT is enabled
-     * 2. Request HFP profile proxy from the system
-     * 3. Wait for profile proxy callback with connected device
-     * 4. Register broadcast receiver for headset state changes
-     *
-     * When Meta DAT SDK is integrated, this method will instead call:
-     *   WearableDeviceManager.getInstance(context).startDeviceDiscovery(callback)
+     * 1. Initialize DAT SDK if needed
+     * 2. Start DAT SDK registration flow
+     * 3. Obtain BT HFP profile proxy for audio routing
+     * 4. Monitor registration state for connection
      */
     @SuppressLint("MissingPermission")
     suspend fun connect() {
@@ -159,6 +218,15 @@ class GlassesManager @Inject constructor(
         _state.value = GlassesState.CONNECTING
 
         try {
+            // Initialize DAT SDK
+            initializeDatSdk()
+
+            // Start DAT registration (opens Meta AI companion app flow)
+            if (!_registrationState.value) {
+                Wearables.startRegistration(context)
+                Log.d(TAG, "DAT registration started")
+            }
+
             val adapter = bluetoothManager?.adapter
             if (adapter == null || !adapter.isEnabled) {
                 Log.e(TAG, "Bluetooth is not available or not enabled")
@@ -202,7 +270,13 @@ class GlassesManager @Inject constructor(
                         return
                     }
                 }
-                Log.w(TAG, "No HFP device found within timeout")
+                // If DAT SDK is registered, we're still connected for camera
+                if (_registrationState.value) {
+                    _state.value = GlassesState.CONNECTED
+                    Log.d(TAG, "Connected via DAT SDK (no BT HFP device)")
+                    return
+                }
+                Log.w(TAG, "No HFP device or DAT registration within timeout")
                 _state.value = GlassesState.ERROR
             }
         } catch (e: SecurityException) {
@@ -284,7 +358,11 @@ class GlassesManager @Inject constructor(
     fun stopAudioCapture() {
         stopAudioCaptureInternal()
         if (_state.value == GlassesState.STREAMING_AUDIO) {
-            _state.value = if (connectedDevice != null) GlassesState.CONNECTED else GlassesState.DISCONNECTED
+            _state.value = if (connectedDevice != null || _registrationState.value) {
+                GlassesState.CONNECTED
+            } else {
+                GlassesState.DISCONNECTED
+            }
         }
     }
 
@@ -293,18 +371,35 @@ class GlassesManager @Inject constructor(
     // -----------------------------------------------------------------
 
     /**
-     * Capture a single photo from the glasses camera.
+     * Проверяет разрешение на камеру очков через DAT SDK.
+     *
+     * @return true если разрешение выдано, false если нужно запросить.
+     */
+    fun hasCameraPermission(): Boolean {
+        if (!isDatInitialized) return false
+        return try {
+            val status = Wearables.checkPermissionStatus(DatPermission.CAMERA)
+            status == DatPermissionStatus.GRANTED
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to check DAT camera permission", e)
+            false
+        }
+    }
+
+    /**
+     * Capture a single photo from the glasses camera via DAT SDK.
      *
      * Returns JPEG-encoded bytes, or null if glasses are not connected or
      * capture fails.
-     *
-     * TODO: When Meta DAT SDK is available, replace with:
-     *   val cameraStream = device.getCameraStream()
-     *   return cameraStream.capturePhoto()
      */
     suspend fun capturePhoto(): ByteArray? {
         if (_state.value != GlassesState.CONNECTED && _state.value != GlassesState.STREAMING_AUDIO) {
             Log.w(TAG, "Cannot capture photo — glasses not connected (state=${_state.value})")
+            return null
+        }
+
+        if (!isDatInitialized || !_registrationState.value) {
+            Log.w(TAG, "Cannot capture photo — DAT SDK not ready")
             return null
         }
 
@@ -313,12 +408,27 @@ class GlassesManager @Inject constructor(
 
         return try {
             withContext(Dispatchers.IO) {
-                // TODO: Replace with Meta DAT SDK camera capture
-                // For now, return null as we cannot access the glasses camera
-                // without the proprietary SDK. The camera frame pipeline is
-                // ready — captured bytes will be emitted to _cameraFrames.
-                Log.d(TAG, "Photo capture requested (awaiting DAT SDK integration)")
-                null
+                // Используем существующую стрим-сессию или создаём временную
+                val session = streamSession ?: startTemporaryStreamSession()
+                if (session == null) {
+                    Log.e(TAG, "Failed to create stream session for photo capture")
+                    return@withContext null
+                }
+
+                val photoResult = session.capturePhoto()
+                val photoBytes = photoResult?.let { extractPhotoBytes(it) }
+
+                // Если сессия была временная, закрываем
+                if (streamSession == null) {
+                    session.close()
+                }
+
+                if (photoBytes != null) {
+                    _cameraFrames.tryEmit(photoBytes)
+                    Log.d(TAG, "Photo captured: ${photoBytes.size} bytes")
+                }
+
+                photoBytes
             }
         } catch (e: Exception) {
             Log.e(TAG, "Photo capture failed", e)
@@ -332,28 +442,73 @@ class GlassesManager @Inject constructor(
     }
 
     /**
-     * Start continuous camera frame streaming from glasses.
+     * Start continuous camera frame streaming from glasses via DAT SDK.
      *
      * Frames are emitted to [cameraFrames] as JPEG-encoded byte arrays.
      *
-     * TODO: When Meta DAT SDK is available, replace with:
-     *   device.getCameraStream().startStreaming { frame ->
-     *       _cameraFrames.tryEmit(frame.toByteArray())
-     *   }
+     * @param quality Качество видео (MEDIUM по умолчанию для баланса BW/quality)
+     * @param frameRate Частота кадров (24 fps по умолчанию)
      */
-    fun startCameraStream() {
+    fun startCameraStream(
+        quality: VideoQuality = VideoQuality.MEDIUM,
+        frameRate: Int = DEFAULT_FRAME_RATE
+    ) {
         if (!isCameraStreaming.compareAndSet(false, true)) {
             Log.d(TAG, "Camera stream already running")
             return
         }
 
+        if (!isDatInitialized) {
+            Log.w(TAG, "Cannot start camera stream — DAT SDK not initialized")
+            isCameraStreaming.set(false)
+            return
+        }
+
         cameraStreamJob = scope.launch {
-            Log.d(TAG, "Camera stream started (awaiting DAT SDK integration)")
-            // TODO: Replace with DAT SDK continuous camera stream
-            // The loop below is a placeholder that keeps the job alive
-            // so stopCameraStream() can cancel it cleanly.
-            while (isActive && isCameraStreaming.get()) {
-                delay(1000)
+            try {
+                val config = StreamConfiguration(
+                    videoQuality = quality,
+                    frameRate = frameRate
+                )
+
+                val session = Wearables.startStreamSession(
+                    context,
+                    AutoDeviceSelector(),
+                    config
+                )
+                streamSession = session
+
+                Log.d(TAG, "DAT camera stream session started (quality=$quality, fps=$frameRate)")
+
+                // Наблюдаем за состоянием стрима
+                streamStateObserverJob = launch {
+                    session.state.collectLatest { streamState ->
+                        Log.d(TAG, "Stream state: $streamState")
+                        if (streamState == StreamSessionState.STOPPED) {
+                            Log.d(TAG, "Camera stream stopped by system")
+                            stopCameraStreamInternal()
+                        }
+                    }
+                }
+
+                // Собираем видеокадры
+                session.videoStream.collectLatest { frame ->
+                    if (!isCameraStreaming.get()) return@collectLatest
+
+                    val jpegBytes = extractFrameBytes(frame)
+                    if (jpegBytes != null) {
+                        _cameraFrames.tryEmit(jpegBytes)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Camera stream error", e)
+            } finally {
+                streamSession?.close()
+                streamSession = null
+                streamStateObserverJob?.cancel()
+                streamStateObserverJob = null
+                isCameraStreaming.set(false)
+                Log.d(TAG, "Camera stream ended")
             }
         }
     }
@@ -363,6 +518,13 @@ class GlassesManager @Inject constructor(
      */
     fun stopCameraStream() {
         stopCameraStreamInternal()
+    }
+
+    /**
+     * Проверяет, доступна ли камера очков (DAT SDK зарегистрирован + разрешение).
+     */
+    fun isCameraAvailable(): Boolean {
+        return isDatInitialized && _registrationState.value && hasCameraPermission()
     }
 
     // -----------------------------------------------------------------
@@ -486,7 +648,63 @@ class GlassesManager @Inject constructor(
         isCameraStreaming.set(false)
         cameraStreamJob?.cancel()
         cameraStreamJob = null
+        streamStateObserverJob?.cancel()
+        streamStateObserverJob = null
+
+        streamSession?.close()
+        streamSession = null
+
         Log.d(TAG, "Camera stream stopped")
+    }
+
+    /**
+     * Создаёт временную стрим-сессию для одиночного фото.
+     */
+    private fun startTemporaryStreamSession(): StreamSession? {
+        return try {
+            val config = StreamConfiguration(
+                videoQuality = VideoQuality.HIGH,
+                frameRate = 1
+            )
+            Wearables.startStreamSession(context, AutoDeviceSelector(), config)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start temporary stream session", e)
+            null
+        }
+    }
+
+    /**
+     * Извлекает JPEG bytes из VideoFrame DAT SDK.
+     */
+    private fun extractFrameBytes(frame: VideoFrame): ByteArray? {
+        return try {
+            val buffer = frame.buffer
+            val bytes = ByteArray(buffer.remaining())
+            buffer.get(bytes)
+            bytes
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract frame bytes", e)
+            null
+        }
+    }
+
+    /**
+     * Извлекает JPEG bytes из PhotoData DAT SDK.
+     */
+    private fun extractPhotoBytes(photo: PhotoData): ByteArray? {
+        return try {
+            val bitmap = photo.bitmap
+            if (bitmap != null) {
+                val stream = ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, stream)
+                stream.toByteArray()
+            } else {
+                photo.bytes
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract photo bytes", e)
+            null
+        }
     }
 
     @SuppressLint("MissingPermission")
