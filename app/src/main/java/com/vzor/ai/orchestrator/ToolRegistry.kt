@@ -103,7 +103,7 @@ class ToolRegistry @Inject constructor(
      * @return Результат в виде строки.
      */
     suspend fun executeTool(name: String, args: Map<String, String>): ToolResult {
-        Log.d(TAG, "Executing tool: $name with args: $args")
+        Log.d(TAG, "Executing tool: $name with args: ${args.keys}")
 
         return try {
             when (name) {
@@ -204,9 +204,8 @@ class ToolRegistry @Inject constructor(
         val from = args["from"] ?: "ru"
         val to = args["to"] ?: "en"
 
-        translationManager.setLanguages(from, to)
-        // Используем прямой перевод через TranslationManager
-        return ToolResult(true, "Перевод '$text' ($from → $to) — используйте режим перевода для полной функциональности")
+        // TODO: добавить public translateText(text, from, to) в TranslationManager
+        return ToolResult(false, "translate tool пока не реализован (текст: '$text', $from → $to)")
     }
 }
 
