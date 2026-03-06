@@ -50,6 +50,64 @@ class AiRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun streamWithTools(
+        messages: List<Message>,
+        tools: List<ClaudeTool>
+    ): Flow<StreamChunk> = flow {
+        when (prefs.aiProvider.first()) {
+            AiProvider.CLAUDE -> {
+                streamClaudeWithTools(messages, tools).collect { emit(it) }
+            }
+            else -> {
+                // Для остальных провайдеров — оборачиваем текстовый стрим в StreamChunk.Text
+                streamMessage(messages).collect { emit(StreamChunk.Text(it)) }
+                emit(StreamChunk.Done("end_turn"))
+            }
+        }
+    }
+
+    private suspend fun streamClaudeWithTools(
+        messages: List<Message>,
+        tools: List<ClaudeTool>
+    ): Flow<StreamChunk> {
+        val apiKey = prefs.claudeApiKey.first()
+        require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
+
+        val systemPrompt = messages.firstOrNull { it.role == MessageRole.SYSTEM }?.content
+        val chatMessages = messages.filter { it.role != MessageRole.SYSTEM }
+
+        val claudeMessages = chatMessages.map { msg ->
+            if (msg.imageData != null) {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = listOf(
+                        ClaudeContentBlock(
+                            type = "image",
+                            source = ClaudeImageSource(
+                                data = Base64.encodeToString(msg.imageData, Base64.NO_WRAP)
+                            )
+                        ),
+                        ClaudeContentBlock(type = "text", text = msg.content)
+                    )
+                )
+            } else {
+                ClaudeMessage(
+                    role = if (msg.role == MessageRole.USER) "user" else "assistant",
+                    content = msg.content
+                )
+            }
+        }
+
+        return claudeStreamingClient.streamChunks(
+            apiKey = apiKey,
+            request = ClaudeRequest(
+                system = systemPrompt,
+                messages = claudeMessages,
+                tools = tools.ifEmpty { null }
+            )
+        )
+    }
+
     override fun streamMessage(messages: List<Message>): Flow<String> = flow {
         when (prefs.aiProvider.first()) {
             AiProvider.GEMINI -> {

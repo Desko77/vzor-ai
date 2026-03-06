@@ -1,8 +1,10 @@
 package com.vzor.ai.orchestrator
 
 import android.util.Log
+import com.vzor.ai.actions.ActionExecutor
 import com.vzor.ai.domain.model.IntentType
 import com.vzor.ai.domain.model.MemoryFact
+import com.vzor.ai.domain.model.VzorIntent
 import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
@@ -38,7 +40,8 @@ class ToolRegistry @Inject constructor(
     private val memoryRepository: MemoryRepository,
     private val translationManager: TranslationManager,
     private val tavilySearchService: TavilySearchService,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val actionExecutor: ActionExecutor
 ) {
     companion object {
         private const val TAG = "ToolRegistry"
@@ -92,6 +95,33 @@ class ToolRegistry @Inject constructor(
             )
         ),
         ToolDescription(
+            name = "action.call",
+            description = "Позвонить контакту",
+            parameters = mapOf("contact" to "string: Имя контакта или номер телефона")
+        ),
+        ToolDescription(
+            name = "action.message",
+            description = "Отправить сообщение контакту (WhatsApp, Telegram, SMS)",
+            parameters = mapOf(
+                "contact" to "string: Имя получателя",
+                "text" to "string: Текст сообщения",
+                "app" to "string: Приложение (whatsapp, telegram, sms) — необязательно"
+            )
+        ),
+        ToolDescription(
+            name = "action.navigate",
+            description = "Навигация к месту назначения",
+            parameters = mapOf("destination" to "string: Адрес или название места")
+        ),
+        ToolDescription(
+            name = "action.playMusic",
+            description = "Управление воспроизведением музыки",
+            parameters = mapOf(
+                "action" to "string: Действие (play, pause, next, previous)",
+                "query" to "string: Запрос для поиска музыки — необязательно"
+            )
+        ),
+        ToolDescription(
             name = "audio.fingerprint",
             description = "Распознать играющую музыку (Shazam-подобный)",
             parameters = emptyMap()
@@ -114,6 +144,10 @@ class ToolRegistry @Inject constructor(
                 "memory.get" -> executeMemoryGet(args)
                 "memory.set" -> executeMemorySet(args)
                 "translate" -> executeTranslate(args)
+                "action.call" -> executeActionCall(args)
+                "action.message" -> executeActionMessage(args)
+                "action.navigate" -> executeActionNavigate(args)
+                "action.playMusic" -> executeActionPlayMusic(args)
                 "audio.fingerprint" -> ToolResult(
                     success = false,
                     output = "audio.fingerprint пока не реализован (нужен ACRCloud API ключ)"
@@ -206,6 +240,61 @@ class ToolRegistry @Inject constructor(
 
         // TODO: добавить public translateText(text, from, to) в TranslationManager
         return ToolResult(false, "translate tool пока не реализован (текст: '$text', $from → $to)")
+    }
+
+    private suspend fun executeActionCall(args: Map<String, String>): ToolResult {
+        val contact = args["contact"]
+            ?: return ToolResult(false, "Не указан контакт для звонка")
+        val intent = VzorIntent(
+            type = IntentType.CALL_CONTACT,
+            confidence = 1.0f,
+            slots = mapOf("contact" to contact)
+        )
+        val result = actionExecutor.execute(intent)
+        return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeActionMessage(args: Map<String, String>): ToolResult {
+        val contact = args["contact"]
+            ?: return ToolResult(false, "Не указан получатель")
+        val text = args["text"]
+            ?: return ToolResult(false, "Не указан текст сообщения")
+        val slots = mutableMapOf("contact" to contact, "text" to text)
+        args["app"]?.let { slots["app"] = it }
+
+        val intent = VzorIntent(
+            type = IntentType.SEND_MESSAGE,
+            confidence = 1.0f,
+            slots = slots
+        )
+        val result = actionExecutor.execute(intent)
+        return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeActionNavigate(args: Map<String, String>): ToolResult {
+        val destination = args["destination"]
+            ?: return ToolResult(false, "Не указан пункт назначения")
+        val intent = VzorIntent(
+            type = IntentType.NAVIGATE,
+            confidence = 1.0f,
+            slots = mapOf("destination" to destination)
+        )
+        val result = actionExecutor.execute(intent)
+        return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeActionPlayMusic(args: Map<String, String>): ToolResult {
+        val slots = mutableMapOf<String, String>()
+        args["action"]?.let { slots["action"] = it }
+        args["query"]?.let { slots["query"] = it }
+
+        val intent = VzorIntent(
+            type = IntentType.PLAY_MUSIC,
+            confidence = 1.0f,
+            slots = slots
+        )
+        val result = actionExecutor.execute(intent)
+        return ToolResult(result.success, result.message)
     }
 }
 

@@ -22,7 +22,28 @@ data class ClaudeRequest(
     @Json(name = "max_tokens") val maxTokens: Int = 4096,
     val system: String? = null,
     val messages: List<ClaudeMessage>,
-    val stream: Boolean = false
+    val stream: Boolean = false,
+    val tools: List<ClaudeTool>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class ClaudeTool(
+    val name: String,
+    val description: String,
+    @Json(name = "input_schema") val inputSchema: ClaudeToolSchema
+)
+
+@JsonClass(generateAdapter = true)
+data class ClaudeToolSchema(
+    val type: String = "object",
+    val properties: Map<String, ClaudeToolProperty> = emptyMap(),
+    val required: List<String> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class ClaudeToolProperty(
+    val type: String = "string",
+    val description: String = ""
 )
 
 @JsonClass(generateAdapter = true)
@@ -56,5 +77,8 @@ data class ClaudeResponse(
 @JsonClass(generateAdapter = true)
 data class ClaudeResponseContent(
     val type: String,
-    val text: String?
+    val text: String? = null,
+    val id: String? = null,
+    val name: String? = null,
+    val input: Map<String, Any>? = null
 )
