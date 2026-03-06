@@ -46,6 +46,10 @@ class YandexSttService @Inject constructor(
         /** Chunk duration for streaming simulation: ~1s of 16kHz 16-bit mono = 32000 bytes */
         private const val CHUNK_SIZE_BYTES = 32000
 
+        /** Скользящее окно для partial recognition: последние N чанков (~5s аудио).
+         *  Вместо O(n²) пересылки всего буфера, отправляем только окно. */
+        private const val WINDOW_CHUNKS = 5
+
         /** Max recording duration in milliseconds */
         private const val MAX_RECORDING_DURATION_MS = 30_000L
     }
@@ -71,27 +75,36 @@ class YandexSttService @Inject constructor(
         }
 
         try {
-            // Collect audio chunks and send for recognition in batches
+            // Sliding window: храним только последний обработанный фрагмент + новый
+            // Вместо O(n²) пересылки всего буфера, отправляем скользящее окно
             val audioBuffer = ByteArrayOutputStream()
             var lastEmittedText = ""
-            var lastSentSize = 0
-            var startTime = System.currentTimeMillis()
+            val startTime = System.currentTimeMillis()
+
+            // Кольцевой буфер последних WINDOW_CHUNKS чанков для partial recognition
+            val recentChunks = ArrayDeque<ByteArray>(WINDOW_CHUNKS + 1)
+            var totalBytesReceived = 0
 
             audioStreamHandler.streamAudio().collect { chunk ->
                 if (!_isListening) {
                     return@collect
                 }
 
+                // Полный буфер для финальной отправки
                 audioBuffer.write(chunk)
+                totalBytesReceived += chunk.size
 
-                // When enough new audio has accumulated, send for recognition
-                if (audioBuffer.size() >= lastSentSize + CHUNK_SIZE_BYTES) {
-                    val currentAudio = audioBuffer.toByteArray()
-                    lastSentSize = currentAudio.size
+                // Скользящее окно для partial recognition
+                recentChunks.addLast(chunk)
+                if (recentChunks.size > WINDOW_CHUNKS) {
+                    recentChunks.removeFirst()
+                }
 
+                // Partial recognition по скользящему окну (O(1) по размеру данных)
+                if (totalBytesReceived % CHUNK_SIZE_BYTES < chunk.size) {
                     try {
-                        val result = recognizeAudio(apiKey, currentAudio)
-                        // Only emit if result actually changed (deduplication)
+                        val windowAudio = mergeChunks(recentChunks)
+                        val result = recognizeAudio(apiKey, windowAudio)
                         if (result.isNotBlank() && result != lastEmittedText) {
                             lastEmittedText = result
                             emit(
@@ -108,7 +121,7 @@ class YandexSttService @Inject constructor(
                     }
                 }
 
-                // Check for max recording duration
+                // Проверка максимальной длительности записи
                 val elapsed = System.currentTimeMillis() - startTime
                 if (elapsed >= MAX_RECORDING_DURATION_MS) {
                     _isListening = false
@@ -116,7 +129,7 @@ class YandexSttService @Inject constructor(
                 }
             }
 
-            // Final recognition with complete audio
+            // Финальная отправка полного буфера (один раз, O(n))
             val completeAudio = audioBuffer.toByteArray()
             if (completeAudio.isNotEmpty()) {
                 try {
@@ -143,6 +156,20 @@ class YandexSttService @Inject constructor(
             _isListening = false
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Объединяет чанки из скользящего окна в один ByteArray.
+     */
+    private fun mergeChunks(chunks: ArrayDeque<ByteArray>): ByteArray {
+        val totalSize = chunks.sumOf { it.size }
+        val result = ByteArray(totalSize)
+        var offset = 0
+        for (chunk in chunks) {
+            System.arraycopy(chunk, 0, result, offset, chunk.size)
+            offset += chunk.size
+        }
+        return result
+    }
 
     override fun stopListening() {
         _isListening = false
