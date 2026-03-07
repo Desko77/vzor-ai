@@ -36,6 +36,11 @@
 | 20 | Low | Тройное декодирование Bitmap в MediaPipeVisionProcessor | Stage 23 |
 | 21-22 | Low | IntentClassifier Regex создаётся при каждом вызове | Stage 23 |
 | 15-17 | Low | ClaudeStreamingClient неидиоматичный flow builder | Stage 26 |
+| 23-26 | High | SttServiceRouter runBlocking → ANR на Main thread | Review fix |
+| 23-26 | High | BatteryMonitor registerReceiver без RECEIVER_NOT_EXPORTED (Android 14+) | Review fix |
+| 23-26 | High | GlassesNotificationManager утечка CoroutineScope | Review fix |
+| 23-26 | High | OfflineSttService close()/awaitClose гонка | Review fix |
+| 23-26 | Medium | AcousticEchoCanceller thread safety (@Volatile) | Review fix |
 
 ---
 
@@ -53,6 +58,24 @@
 - **Problem:** Номера телефонов в тексте попадают в UI/логи
 - **Status:** By design для TTS, но проверить что не логируется
 
+### [Medium] SpeakerDiarizer mutable state без синхронизации
+- **Stage:** 23-26
+- **File:** `speech/SpeakerDiarizer.kt:69-72`
+- **Problem:** segments, lastSpeechEndMs, currentSegmentStartMs, isInSpeech — без Mutex/synchronized
+- **Fix:** Добавить Mutex для защиты mutable state
+
+### [Medium] PhotoCaptureAction imageData теряется
+- **Stage:** 23-26
+- **File:** `actions/PhotoCaptureAction.kt:42-47`
+- **Problem:** Документация обещает imageData в ActionResult, но поле не заполняется
+- **Fix:** Добавить imageData = photoBytes или обновить документацию
+
+### [Medium] TranslationManager CoroutineScope утечка при повторном start
+- **Stage:** 23-26
+- **File:** `translation/TranslationManager.kt:88`
+- **Problem:** Новый scope создаётся при каждом startTranslation без гарантии отмены предыдущего
+- **Fix:** Хрупко, хотя stopTranslation вызывается — добавить проверку
+
 ### [Low] ToolRegistryTest тавтология
 - **Stage:** 12
 - **File:** `test/.../ToolRegistryTest.kt`
@@ -64,13 +87,23 @@
 - **File:** `actions/ContactPreferenceManager.kt:145`
 - **Fix:** Кеш с TTL ~30 сек
 
+### [Low] OfflineSttService WAV файлы не очищаются при crash
+- **Stage:** 23-26
+- **File:** `speech/OfflineSttService.kt:129`
+- **Fix:** Очистка старых offline_stt_*.wav при инициализации
+
+### [Low] ToolResult hashCode не учитывает imageData
+- **Stage:** 23-26
+- **File:** `orchestrator/ToolResult.kt`
+- **Fix:** Включить imageData?.contentHashCode()
+
 ---
 
 ## Сводка
 
 | Severity | Open | Closed |
 |----------|:----:|:------:|
-| High | 0 | 10 |
-| Medium | 2 | 8 |
-| Low | 2 | 6 |
-| **Total** | **4** | **24** |
+| High | 0 | 14 |
+| Medium | 5 | 10 |
+| Low | 4 | 8 |
+| **Total** | **9** | **32** |
