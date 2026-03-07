@@ -18,6 +18,7 @@ generativeai = "0.9.0"
 mlkit-text = "16.0.1"
 mediapipe = "0.10.29"
 mwdat = "0.4.0"
+porcupine = "3.0.3"
 sqlcipher = "4.6.1"
 
 [libraries]
@@ -64,6 +65,9 @@ mediapipe-vision = { group = "com.google.mediapipe", name = "tasks-vision", vers
 mwdat-core = { module = "com.meta.wearable:mwdat-core", version.ref = "mwdat" }
 mwdat-camera = { module = "com.meta.wearable:mwdat-camera", version.ref = "mwdat" }
 mwdat-mockdevice = { module = "com.meta.wearable:mwdat-mockdevice", version.ref = "mwdat" }
+
+# Picovoice Porcupine Wake Word
+porcupine-android = { module = "ai.picovoice:porcupine-android", version.ref = "porcupine" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

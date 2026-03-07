@@ -118,6 +118,9 @@ dependencies {
     implementation(libs.mwdat.camera)
     testImplementation(libs.mwdat.mockdevice)
 
+    // Picovoice Porcupine Wake Word SDK
+    implementation(libs.porcupine.android)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

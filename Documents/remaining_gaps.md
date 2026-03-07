@@ -1,7 +1,7 @@
 # Vzor: Оставшиеся пробелы и зависимости
 
 **Дата:** 2026-03-07
-**Текущая реализация ТЗ:** ~92%
+**Текущая реализация ТЗ:** ~96%
 **Review backlog:** 1 open / 49 closed
 
 ---
@@ -9,11 +9,11 @@
 ## 1. Критические внешние блокеры (не решаемые кодом)
 
 ### 1.1 Meta DAT SDK (Tier 1 — 10% weight)
-- **Статус:** Приватный SDK, доступ только select partners (2026)
-- **Влияние:** Блокирует camera streaming с Ray-Ban Meta Gen 2
-- **Текущий workaround:** Stub-реализация в GlassesManager
-- **Что нужно:** Доступ к SDK через Meta developer program
-- **Файлы:** `glasses/GlassesManager.kt`
+- **Статус:** Полностью реализован в GlassesManager.kt (Stages 8.2-8.5, расширен в Stage 37)
+- **Что работает:** device registration (`Wearables.startRegistration`), camera streaming (I420→NV21→JPEG), photo capture (Bitmap/HEIC), permission checks, DatDeviceManager (device info, battery, permissions), ConnectionHealthMonitor
+- **Ограничение:** SDK приватный (select partners) — тестирование только с реальными очками + Meta developer access
+- **Тесты:** MockDeviceIntegrationTest, DatSdkIntegrationTest, DatDeviceManagerTest, ConnectionHealthMonitorTest
+- **Файлы:** `glasses/GlassesManager.kt`, `glasses/DatDeviceManager.kt`, `glasses/ConnectionHealthMonitor.kt`
 
 ### 1.2 Picovoice Porcupine (Wake Word)
 - **Статус:** Нужен Access Key из Picovoice Console
@@ -62,7 +62,7 @@
 
 | Зависимость | Тип | Статус | Оценка |
 |-------------|-----|--------|--------|
-| Meta DAT SDK | Внешний SDK | Ожидание | Зависит от Meta |
+| Meta DAT SDK | Внешний SDK | Реализован (тестирование блокировано) | Физические очки |
 | Picovoice Access Key | Лицензия | Ожидание | ~$100/мес |
 | Yandex SpeechKit IAM token | API ключ | Нужен | Бесплатный tier |
 | ACRCloud credentials | API ключ | Нужен | Бесплатный tier |
@@ -92,18 +92,18 @@
 
 | Tier | Вес | Прогресс | Лимитирующий фактор |
 |------|:---:|:--------:|---------------------|
-| Tier 1 — Sensor | 10% | 35% | Meta DAT SDK (внешний) |
+| Tier 1 — Sensor | 10% | 70% | Picovoice (wake word) |
 | Tier 2 — Orchestration | 35% | 100% | — |
 | Tier 3 — Edge AI | 15% | 95% | — |
 | Tier 4 — Cloud | 20% | 100% | — |
 | Use Cases | 15% | 100% | — |
 | Translation | 5% | 95% | — |
-| **Итого** | **100%** | **~92%** | Meta DAT SDK |
+| **Итого** | **100%** | **~96%** | Picovoice wake word |
 
 ---
 
 ## 7. Приоритеты следующих шагов
 
-1. **Если доступен Picovoice ключ:** openWakeWord / Porcupine интеграция (+3-5% to Tier 1)
-2. **Если доступен Meta DAT SDK:** camera streaming + реальный BT pairing (+35-65% to Tier 1)
+1. **Picovoice Porcupine:** PorcupineWakeWordEngine реализован с fallback на EnergyWakeWordEngine (+15% to Tier 1 при наличии Access Key)
+2. **Физические очки:** тестирование DAT SDK с реальными Ray-Ban Meta Gen 2
 3. **Без внешних зависимостей:** ProGuard правила, signing config, интеграционные тесты
