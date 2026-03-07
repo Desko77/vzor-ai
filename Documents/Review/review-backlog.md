@@ -54,6 +54,7 @@
 | 21-22 | Medium | PII в disambiguation message (ContactPreferenceManager) | Stage 33 |
 | 12 | Low | ToolRegistryTest тавтология | Stage 33 |
 | 27-31 | Low | ClipEmbeddingService название не соответствует реализации | Stage 33 |
+| 33-34 | High | OfflineSttService destroyRecognizer race condition (double-destroy) | Review fix |
 
 ---
 
@@ -71,7 +72,7 @@
 
 | Severity | Open | Closed |
 |----------|:----:|:------:|
-| High | 0 | 16 |
+| High | 0 | 17 |
 | Medium | 1 | 17 |
 | Low | 0 | 15 |
-| **Total** | **1** | **48** |
+| **Total** | **1** | **49** |
