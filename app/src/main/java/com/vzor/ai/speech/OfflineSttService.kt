@@ -74,8 +74,7 @@ class OfflineSttService @Inject constructor(
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    @Volatile
-    private var recognizer: SpeechRecognizer? = null
+    private val recognizerRef = java.util.concurrent.atomic.AtomicReference<SpeechRecognizer?>(null)
 
     /**
      * Распознавание через Android SpeechRecognizer с EXTRA_PREFER_OFFLINE.
@@ -105,7 +104,7 @@ class OfflineSttService @Inject constructor(
                 } else {
                     SpeechRecognizer.createSpeechRecognizer(context)
                 }
-                recognizer = sr
+                recognizerRef.set(sr)
 
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -134,17 +133,35 @@ class OfflineSttService @Inject constructor(
                         Log.d(TAG, "Speech ended")
                     }
 
+                    private var retryCount = 0
+                    private val maxRetries = 1
+
                     override fun onError(error: Int) {
                         val errorMsg = when (error) {
                             SpeechRecognizer.ERROR_AUDIO -> "Audio error"
                             SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
                             SpeechRecognizer.ERROR_NO_MATCH -> "No match"
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "No permission"
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
                             else -> "Error $error"
                         }
-                        Log.w(TAG, "SpeechRecognizer error: $errorMsg")
+                        Log.w(TAG, "SpeechRecognizer error: $errorMsg (retry=$retryCount)")
 
-                        // Fallback к записи WAV
+                        // Повторяемые ошибки — пробуем ещё раз
+                        val isRetryable = error == SpeechRecognizer.ERROR_AUDIO ||
+                            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+                            error == SpeechRecognizer.ERROR_NETWORK
+
+                        if (isRetryable && retryCount < maxRetries && _isListening.get()) {
+                            retryCount++
+                            Log.d(TAG, "Retrying SpeechRecognizer ($retryCount/$maxRetries)")
+                            mainHandler.postDelayed({ sr.startListening(intent) }, 500)
+                            return
+                        }
+
+                        // Нет совпадений / таймаут — корректное завершение
                         if (error == SpeechRecognizer.ERROR_NO_MATCH ||
                             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
                             _isListening.set(false)
@@ -237,8 +254,7 @@ class OfflineSttService @Inject constructor(
      * Атомарно обнуляет ссылку для предотвращения double-destroy.
      */
     private fun destroyRecognizerOnMainThread() {
-        val sr = recognizer ?: return
-        recognizer = null
+        val sr = recognizerRef.getAndSet(null) ?: return
         val action = Runnable {
             try {
                 sr.stopListening()

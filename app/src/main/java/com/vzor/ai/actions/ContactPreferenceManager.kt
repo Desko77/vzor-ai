@@ -105,10 +105,20 @@ class ContactPreferenceManager @Inject constructor(
         val sb = StringBuilder()
         sb.appendLine("Найдено несколько контактов \"${result.query}\":")
         result.candidates.forEachIndexed { i, c ->
-            sb.appendLine("${i + 1}. ${c.displayName} (${c.phoneNumber})")
+            sb.appendLine("${i + 1}. ${c.displayName} (${maskPhoneNumber(c.phoneNumber)})")
         }
         sb.append("Кому звонить?")
         return sb.toString()
+    }
+
+    /**
+     * Маскирует номер телефона для отображения в UI/TTS.
+     * Показывает только последние 4 цифры: ***1234
+     */
+    private fun maskPhoneNumber(phone: String): String {
+        val digits = phone.filter { it.isDigit() }
+        if (digits.length <= 4) return phone
+        return "***${digits.takeLast(4)}"
     }
 
     /**

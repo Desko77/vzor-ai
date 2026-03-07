@@ -105,7 +105,7 @@ class GlassesNotificationManager @Inject constructor(
             VoiceState.ERROR -> "Ошибка"
         }
 
-        val smallIcon = android.R.drawable.ic_dialog_info // TODO: replace with vzor icon
+        val smallIcon = com.vzor.ai.R.drawable.ic_notification_vzor
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
