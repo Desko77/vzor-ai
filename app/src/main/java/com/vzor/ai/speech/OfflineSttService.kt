@@ -74,8 +74,7 @@ class OfflineSttService @Inject constructor(
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    @Volatile
-    private var recognizer: SpeechRecognizer? = null
+    private val recognizerRef = java.util.concurrent.atomic.AtomicReference<SpeechRecognizer?>(null)
 
     /**
      * Распознавание через Android SpeechRecognizer с EXTRA_PREFER_OFFLINE.
@@ -105,7 +104,7 @@ class OfflineSttService @Inject constructor(
                 } else {
                     SpeechRecognizer.createSpeechRecognizer(context)
                 }
-                recognizer = sr
+                recognizerRef.set(sr)
 
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -255,8 +254,7 @@ class OfflineSttService @Inject constructor(
      * Атомарно обнуляет ссылку для предотвращения double-destroy.
      */
     private fun destroyRecognizerOnMainThread() {
-        val sr = recognizer ?: return
-        recognizer = null
+        val sr = recognizerRef.getAndSet(null) ?: return
         val action = Runnable {
             try {
                 sr.stopListening()
