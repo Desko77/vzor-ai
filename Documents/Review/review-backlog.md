@@ -29,6 +29,13 @@
 | 21-22 | High | Prompt injection — userQuery без sanitization в промптах | Review fix |
 | 21-22 | High | ContactPreferenceManager проглоченные исключения | Review fix |
 | 21-22 | Medium | ActionExecutor NotFound вызывал звонок с невалидным контактом | Review fix |
+| 15-17 | Medium | streamToolContinuation привязан к Claude API | Stage 23 |
+| 15-17 | Medium | Двойной emitAccumulatedToolCalls в OpenAI клиенте | Stage 23 |
+| 21-22 | Medium | VisionRouter двойное обогащение промпта | Stage 23 |
+| 20 | Low | OkHttpClient в YandexSttService не инжектируется | Stage 23 |
+| 20 | Low | Тройное декодирование Bitmap в MediaPipeVisionProcessor | Stage 23 |
+| 21-22 | Low | IntentClassifier Regex создаётся при каждом вызове | Stage 23 |
+| 15-17 | Low | ClaudeStreamingClient неидиоматичный flow builder | Stage 26 |
 
 ---
 
@@ -39,24 +46,6 @@
 - **File:** `di/AppModule.kt`
 - **Problem:** `MasterKeys.getOrCreate()` deprecated, замена `MasterKey.Builder` в alpha
 - **Status:** Ожидает стабильного релиза security-crypto 1.1.0
-
-### [Medium] streamToolContinuation привязан к Claude API
-- **Stage:** 15-17
-- **File:** `data/repository/AiRepositoryImpl.kt:181-222`
-- **Problem:** `streamToolContinuation()` всегда использует Claude API, игнорируя текущий провайдер
-- **Fix:** Добавить ветвление по провайдеру или документировать ограничение
-
-### [Medium] Двойной вызов emitAccumulatedToolCalls в OpenAI клиенте
-- **Stage:** 15-17
-- **File:** `data/remote/OpenAiStreamingClient.kt:121-150`
-- **Problem:** При finish_reason="tool_calls" + [DONE] — два вызова (безопасно, maps очищены)
-- **Fix:** Пропускать второй вызов если maps пусты
-
-### [Medium] VisionRouter двойное обогащение промпта
-- **Stage:** 21-22
-- **File:** `vision/VisionRouter.kt:54-64`
-- **Problem:** auto-enrichment может дублировать промпт при вызове через ToolRegistry
-- **Fix:** Добавить флаг `skipEnrichment` или убрать auto-enrichment
 
 ### [Medium] PII в disambiguation message (ContactPreferenceManager)
 - **Stage:** 21-22
@@ -70,27 +59,6 @@
 - **Problem:** Тест создаёт локальный список и проверяет его
 - **Fix:** Инстанцировать ToolRegistry с mock-зависимостями
 
-### [Low] ClaudeStreamingClient неидиоматичный flow builder
-- **Stage:** 15-17
-- **File:** `data/remote/ClaudeStreamingClient.kt:39-47`
-- **Fix:** Заменить на `filterIsInstance<StreamChunk.Text>().map { it.content }`
-
-### [Low] OkHttpClient в YandexSttService не инжектируется
-- **Stage:** 20
-- **File:** `speech/YandexSttService.kt:76-80`
-- **Fix:** Инжектировать общий OkHttpClient через Hilt
-
-### [Low] Тройное декодирование Bitmap в MediaPipeVisionProcessor
-- **Stage:** 20
-- **File:** `vision/MediaPipeVisionProcessor.kt`
-- **Problem:** detectFaces/detectObjects/detectGestures каждый декодируют imageBytes
-- **Fix:** Декодировать один раз в VisionRouter
-
-### [Low] IntentClassifier Regex создаётся при каждом вызове
-- **Stage:** 21-22
-- **File:** `orchestrator/IntentClassifier.kt:321`
-- **Fix:** Вынести `"\\s+".toRegex()` в companion object
-
 ### [Low] Контакты загружаются заново при каждом resolveContact
 - **Stage:** 21-22
 - **File:** `actions/ContactPreferenceManager.kt:145`
@@ -103,6 +71,6 @@
 | Severity | Open | Closed |
 |----------|:----:|:------:|
 | High | 0 | 10 |
-| Medium | 5 | 5 |
-| Low | 6 | 2 |
-| **Total** | **11** | **17** |
+| Medium | 2 | 8 |
+| Low | 2 | 6 |
+| **Total** | **4** | **24** |

@@ -14,6 +14,11 @@ import kotlin.math.min
 @Singleton
 class IntentClassifier @Inject constructor() {
 
+    companion object {
+        /** Предкомпилированный regex для разбиения на слова. */
+        private val WHITESPACE_REGEX = "\\s+".toRegex()
+    }
+
     private data class WeightedKeyword(
         val keyword: String,
         val weight: Float = 1.0f,
@@ -318,8 +323,8 @@ class IntentClassifier @Inject constructor() {
      * subsequence of text words matches the keyword words within the Levenshtein threshold.
      */
     private fun fuzzyContains(text: String, keyword: String, threshold: Int): Boolean {
-        val textWords = text.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-        val kwWords = keyword.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val textWords = text.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
+        val kwWords = keyword.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
 
         if (kwWords.isEmpty() || textWords.size < kwWords.size) return false
 
@@ -394,8 +399,8 @@ class IntentClassifier @Inject constructor() {
 
             // Fuzzy word-level match for single-word keywords
             if (fuzzyThreshold > 0) {
-                val textWords = text.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-                val kwWords = keyword.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                val textWords = text.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
+                val kwWords = keyword.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
                 if (kwWords.size == 1) {
                     val matchIdx = textWords.indexOfFirst { levenshtein(it, kwWords[0]) <= fuzzyThreshold }
                     if (matchIdx >= 0) {

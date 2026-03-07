@@ -31,7 +31,8 @@ class BackendRouter @Inject constructor(
     private val prefs: PreferencesManager,
     private val connectionProfileManager: ConnectionProfileManager? = null,
     private val audioContextDetector: AudioContextDetector? = null,
-    private val modelRuntimeManager: ModelRuntimeManager? = null
+    private val modelRuntimeManager: ModelRuntimeManager? = null,
+    private val batteryMonitor: BatteryMonitor? = null
 ) {
     companion object {
         /** Maximum acceptable queue wait time on EVO X2 before falling back to cloud. */
@@ -73,6 +74,14 @@ class BackendRouter @Inject constructor(
     val x2UsedMemoryMb: Int
         get() = modelRuntimeManager?.usedMemoryMb?.value ?: 0
 
+    /** Текущий уровень заряда батареи (0-100). */
+    val batteryLevel: Int
+        get() = batteryMonitor?.level ?: 100
+
+    /** Устройство перегревается — ограничиваем on-device вычисления. */
+    val isThermalThrottle: Boolean
+        get() = batteryMonitor?.isThermalThrottle ?: false
+
     /**
      * X2 под давлением памяти — если загружено > 90% лимита,
      * предпочитаем cloud для снижения нагрузки.
@@ -94,6 +103,11 @@ class BackendRouter @Inject constructor(
 
         // 2. Battery < 20% → cloud (minimize local AI load)
         if (context.batteryLevel < LOW_BATTERY_THRESHOLD) {
+            return RoutingDecision.CLOUD
+        }
+
+        // 2b. Thermal throttle → cloud (снижаем нагрузку на SoC)
+        if (isThermalThrottle) {
             return RoutingDecision.CLOUD
         }
 

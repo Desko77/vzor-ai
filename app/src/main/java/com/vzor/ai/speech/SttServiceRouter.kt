@@ -5,7 +5,6 @@ import com.vzor.ai.domain.model.SttProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,29 +17,29 @@ import javax.inject.Singleton
 class SttServiceRouter @Inject constructor(
     private val whisperSttService: WhisperSttService,
     private val yandexSttService: YandexSttService,
+    private val offlineSttService: OfflineSttService,
     private val prefs: PreferencesManager
 ) : SttService {
 
-    private val activeService: SttService
-        get() {
-            val provider = runBlocking { prefs.sttProvider.first() }
-            return when (provider) {
-                SttProvider.WHISPER -> whisperSttService
-                SttProvider.YANDEX -> yandexSttService
-                SttProvider.GOOGLE -> whisperSttService // fallback to Whisper
-            }
-        }
+    private fun resolveService(provider: SttProvider): SttService = when (provider) {
+        SttProvider.WHISPER -> whisperSttService
+        SttProvider.YANDEX -> yandexSttService
+        SttProvider.GOOGLE -> whisperSttService // fallback to Whisper
+        SttProvider.OFFLINE -> offlineSttService
+    }
 
     override fun startListening(): Flow<SttResult> = flow {
-        activeService.startListening().collect { emit(it) }
+        val provider = prefs.sttProvider.first()
+        resolveService(provider).startListening().collect { emit(it) }
     }
 
     override fun stopListening() {
-        // Останавливаем оба — один из них может быть активен
+        // Останавливаем все — один из них может быть активен
         whisperSttService.stopListening()
         yandexSttService.stopListening()
+        offlineSttService.stopListening()
     }
 
     override val isListening: Boolean
-        get() = whisperSttService.isListening || yandexSttService.isListening
+        get() = whisperSttService.isListening || yandexSttService.isListening || offlineSttService.isListening
 }

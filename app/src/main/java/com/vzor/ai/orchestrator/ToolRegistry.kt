@@ -23,7 +23,7 @@ import javax.inject.Singleton
 /**
  * Tool Registry — маппинг LLM tool calls к сервисам приложения.
  *
- * Поддерживаемые инструменты (16):
+ * Поддерживаемые инструменты (18):
  * 1. vision.getScene    — описание сцены с камеры
  * 2. vision.describe    — описание изображения
  * 3. action.capture     — фото с камеры очков
@@ -40,6 +40,8 @@ import javax.inject.Singleton
  * 14. vision.shopping      — шопинг: анализ товара, сравнение, ценники (UC#5)
  * 15. vision.accessibility — доступность: описание окружения, навигация (UC#8)
  * 16. vision.place         — идентификация мест и достопримечательностей (UC#2)
+ * 17. action.reminder      — установка напоминания с текстом и задержкой
+ * 18. action.timer         — установка таймера обратного отсчёта
  */
 @Singleton
 class ToolRegistry @Inject constructor(
@@ -162,6 +164,21 @@ class ToolRegistry @Inject constructor(
             parameters = mapOf(
                 "query" to "string: Дополнительный вопрос о месте — необязательно"
             )
+        ),
+        ToolDescription(
+            name = "action.reminder",
+            description = "Установить напоминание с текстом через указанное время",
+            parameters = mapOf(
+                "text" to "string: Текст напоминания",
+                "minutes" to "int: Через сколько минут напомнить (по умолчанию 5)"
+            )
+        ),
+        ToolDescription(
+            name = "action.timer",
+            description = "Установить таймер обратного отсчёта",
+            parameters = mapOf(
+                "minutes" to "int: Длительность таймера в минутах"
+            )
         )
     )
 
@@ -189,6 +206,8 @@ class ToolRegistry @Inject constructor(
                 "vision.shopping" -> executeVisionShopping(args)
                 "vision.accessibility" -> executeVisionAccessibility(args)
                 "vision.place" -> executeVisionPlace(args)
+                "action.reminder" -> executeActionReminder(args)
+                "action.timer" -> executeActionTimer(args)
                 "audio.fingerprint" -> ToolResult(
                     success = false,
                     output = "audio.fingerprint пока не реализован (нужен ACRCloud API ключ)"
@@ -409,6 +428,33 @@ class ToolRegistry @Inject constructor(
             type = IntentType.PLAY_MUSIC,
             confidence = 1.0f,
             slots = slots
+        )
+        val result = actionExecutor.execute(intent)
+        return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeActionReminder(args: Map<String, String>): ToolResult {
+        val text = args["text"]
+            ?: return ToolResult(false, "Не указан текст напоминания")
+        val minutes = args["minutes"]?.toIntOrNull() ?: 5
+
+        val intent = VzorIntent(
+            type = IntentType.SET_REMINDER,
+            confidence = 1.0f,
+            slots = mapOf("text" to text, "minutes" to minutes.toString())
+        )
+        val result = actionExecutor.execute(intent)
+        return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeActionTimer(args: Map<String, String>): ToolResult {
+        val minutes = args["minutes"]?.toIntOrNull()
+            ?: return ToolResult(false, "Не указана длительность таймера")
+
+        val intent = VzorIntent(
+            type = IntentType.SET_REMINDER,
+            confidence = 1.0f,
+            slots = mapOf("type" to "timer", "minutes" to minutes.toString())
         )
         val result = actionExecutor.execute(intent)
         return ToolResult(result.success, result.message)

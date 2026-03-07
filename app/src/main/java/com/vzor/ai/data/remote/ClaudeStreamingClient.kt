@@ -5,6 +5,7 @@ import com.squareup.moshi.Moshi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -38,13 +39,8 @@ class ClaudeStreamingClient @Inject constructor(
      */
     fun stream(apiKey: String, request: ClaudeRequest): Flow<String> =
         streamChunks(apiKey, request)
-            .let { flow ->
-                kotlinx.coroutines.flow.flow {
-                    flow.collect { chunk ->
-                        if (chunk is StreamChunk.Text) emit(chunk.content)
-                    }
-                }
-            }
+            .filterIsInstance<StreamChunk.Text>()
+            .map { it.content }
 
     /**
      * Стримит ответ от Claude API с полной поддержкой tool calls.

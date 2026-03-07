@@ -8,6 +8,8 @@ import com.vzor.ai.data.remote.YandexTranslateService
 import com.vzor.ai.domain.model.Message
 import com.vzor.ai.domain.model.MessageRole
 import com.vzor.ai.domain.repository.AiRepository
+import com.vzor.ai.speech.AcousticEchoCanceller
+import com.vzor.ai.speech.SpeakerDiarizer
 import com.vzor.ai.speech.SttService
 import com.vzor.ai.tts.TtsManager
 import kotlinx.coroutines.CoroutineScope
@@ -39,7 +41,9 @@ class TranslationManager @Inject constructor(
     private val ttsManager: TtsManager,
     private val aiRepository: AiRepository,
     private val yandexTranslate: YandexTranslateService,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val speakerDiarizer: SpeakerDiarizer,
+    private val acousticEchoCanceller: AcousticEchoCanceller
 ) {
 
     companion object {
@@ -95,6 +99,9 @@ class TranslationManager @Inject constructor(
             TranslationState(mode = mode, isActive = true, status = "listening")
         }
 
+        // Сбрасываем diarization для новой сессии
+        speakerDiarizer.reset()
+
         listeningJob = scope.launch {
             try {
                 startListeningPipeline(mode)
@@ -116,6 +123,7 @@ class TranslationManager @Inject constructor(
 
         sttService.stopListening()
         ttsManager.cancelAll()
+        acousticEchoCanceller.release()
 
         translationScope?.cancel()
         translationScope = null

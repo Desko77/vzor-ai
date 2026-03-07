@@ -151,6 +151,7 @@ class OpenAiStreamingClient @Inject constructor(
             }
 
             private fun emitAccumulatedToolCalls() {
+                if (toolCallNames.isEmpty()) return // Пропускаем повторный вызов (finish_reason + [DONE])
                 for ((index, name) in toolCallNames) {
                     val tcId = toolCallIds[index] ?: "call_$index"
                     val argsJson = toolCallArgs[index]?.toString() ?: "{}"

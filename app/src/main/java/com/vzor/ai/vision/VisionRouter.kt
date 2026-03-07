@@ -36,7 +36,8 @@ class VisionRouter @Inject constructor(
     suspend fun analyzeScene(
         imageBytes: ByteArray,
         prompt: String,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        skipEnrichment: Boolean = false
     ): Result<SceneData> {
         if (!forceRefresh) {
             val cached = perceptionCache.get(CACHE_KEY_SCENE)
@@ -50,8 +51,9 @@ class VisionRouter @Inject constructor(
             return Result.failure(Exception("Vision API rate limit exceeded"))
         }
 
-        // Автоматически обогащаем промпт для специализированных запросов
-        val enhancedPrompt = when {
+        // Автоматически обогащаем промпт для специализированных запросов.
+        // skipEnrichment=true когда вызов идёт из ToolRegistry (промпт уже обогащён).
+        val enhancedPrompt = if (skipEnrichment) prompt else when {
             FoodAnalysisPrompts.isFoodQuery(prompt) ->
                 FoodAnalysisPrompts.buildAnalysisPrompt(prompt)
             ShoppingComparisonHelper.isShoppingQuery(prompt) ->
@@ -81,10 +83,11 @@ class VisionRouter @Inject constructor(
         prompt: String,
         forceRefresh: Boolean = false
     ): Result<SceneData> {
-        // 1. MediaPipe: быстрое on-device обнаружение лиц, объектов и жестов
-        val faces = mediaPipeProcessor.detectFaces(imageBytes)
-        val mpObjects = mediaPipeProcessor.detectObjects(imageBytes)
-        val gestures = mediaPipeProcessor.detectGestures(imageBytes)
+        // 1. MediaPipe: пакетное on-device обнаружение (1 Bitmap decode вместо 3)
+        val batch = mediaPipeProcessor.detectAll(imageBytes)
+        val faces = batch.faces
+        val mpObjects = batch.objects
+        val gestures = batch.gestures
 
         // 2. ML Kit OCR для текстовых запросов
         if (onDeviceProcessor.isTextQuery(prompt)) {
