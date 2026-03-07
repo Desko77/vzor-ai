@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -188,22 +189,29 @@ class SubtitleOverlayService @Inject constructor(
 
     /**
      * Скрывает и уничтожает оверлей.
+     * Должен вызываться с Main thread (UI операции).
      */
     fun hide() {
         if (!isShowing) return
+        isShowing = false
 
         try {
             autoHideJob?.cancel()
             autoHideJob = null
-            scope?.launch(Dispatchers.Main) {
-                overlayView?.let { view ->
+
+            overlayView?.let { view ->
+                try {
                     windowManager?.removeView(view)
+                } catch (e: Exception) {
+                    Log.w(TAG, "View already removed", e)
                 }
-                overlayView = null
-                windowManager = null
             }
+            overlayView = null
+            windowManager = null
+
+            scope?.cancel()
             scope = null
-            isShowing = false
+
             Log.d(TAG, "Subtitle overlay hidden")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to hide subtitle overlay", e)

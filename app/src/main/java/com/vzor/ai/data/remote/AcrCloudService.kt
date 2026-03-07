@@ -103,6 +103,11 @@ class AcrCloudService @Inject constructor(
                 timestamp = timestamp
             )
 
+            if (signature == null) {
+                Log.e(TAG, "Failed to generate HMAC signature")
+                return@withContext null
+            }
+
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("access_key", accessKey)
@@ -125,14 +130,16 @@ class AcrCloudService @Inject constructor(
                 .build()
 
             val response = okHttpClient.newCall(request).execute()
-            val body = response.body?.string()
+            response.use { resp ->
+                val body = resp.body?.string()
 
-            if (!response.isSuccessful || body.isNullOrBlank()) {
-                Log.e(TAG, "ACRCloud API error: ${response.code}")
-                return@withContext null
+                if (!resp.isSuccessful || body.isNullOrBlank()) {
+                    Log.e(TAG, "ACRCloud API error: ${resp.code}")
+                    return@withContext null
+                }
+
+                parseResponse(body)
             }
-
-            parseResponse(body)
         } catch (e: Exception) {
             Log.e(TAG, "ACRCloud identify failed", e)
             null
@@ -158,7 +165,7 @@ class AcrCloudService @Inject constructor(
         dataType: String,
         signatureVersion: String,
         timestamp: String
-    ): String {
+    ): String? {
         val stringToSign = "POST\n$API_PATH\n$accessKey\n$dataType\n$signatureVersion\n$timestamp"
         return try {
             val mac = Mac.getInstance("HmacSHA1")
@@ -167,7 +174,7 @@ class AcrCloudService @Inject constructor(
             android.util.Base64.encodeToString(rawHmac, android.util.Base64.NO_WRAP)
         } catch (e: InvalidKeyException) {
             Log.e(TAG, "Invalid ACRCloud secret key", e)
-            ""
+            null
         }
     }
 

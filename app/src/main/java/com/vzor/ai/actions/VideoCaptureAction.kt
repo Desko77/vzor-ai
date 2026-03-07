@@ -3,6 +3,7 @@ package com.vzor.ai.actions
 import android.util.Log
 import com.vzor.ai.glasses.GlassesManager
 import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,8 +29,8 @@ class VideoCaptureAction @Inject constructor(
         private const val MAX_DURATION_SEC = 60
     }
 
-    @Volatile
-    private var isRecording = false
+    private val _isRecording = AtomicBoolean(false)
+    private val isRecording: Boolean get() = _isRecording.get()
 
     /**
      * Начинает запись видео.
@@ -46,7 +47,7 @@ class VideoCaptureAction @Inject constructor(
             )
         }
 
-        if (isRecording) {
+        if (!_isRecording.compareAndSet(false, true)) {
             return ActionResult(
                 success = false,
                 message = "Запись уже идёт. Скажите «стоп» для остановки."
@@ -56,7 +57,6 @@ class VideoCaptureAction @Inject constructor(
         val duration = durationSeconds.coerceIn(1, MAX_DURATION_SEC)
 
         return try {
-            isRecording = true
             glassesManager.startCameraStream()
 
             Log.d(TAG, "Video recording started (max ${duration}s)")
@@ -76,7 +76,7 @@ class VideoCaptureAction @Inject constructor(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Video recording failed", e)
-            isRecording = false
+            stopRecordingInternal()
             ActionResult(
                 success = false,
                 message = "Ошибка записи видео: ${e.message}"
@@ -116,8 +116,13 @@ class VideoCaptureAction @Inject constructor(
     fun isCurrentlyRecording(): Boolean = isRecording
 
     private fun stopRecordingInternal() {
-        isRecording = false
-        glassesManager.stopCameraStream()
-        Log.d(TAG, "Video recording stopped")
+        if (_isRecording.getAndSet(false)) {
+            try {
+                glassesManager.stopCameraStream()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping camera stream", e)
+            }
+            Log.d(TAG, "Video recording stopped")
+        }
     }
 }

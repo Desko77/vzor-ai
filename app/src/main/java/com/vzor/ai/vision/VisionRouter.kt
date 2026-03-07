@@ -19,7 +19,8 @@ class VisionRouter @Inject constructor(
 ) {
     companion object {
         private const val TAG = "VisionRouter"
-        private const val CACHE_KEY_SCENE = "scene_latest"
+        private const val CACHE_KEY_SCENE = "scene_cloud"
+        private const val CACHE_KEY_SCENE_PREPROCESSED = "scene_preprocessed"
         private const val DEFAULT_SCENE_TTL = 10_000L
 
         private val OBJECT_PATTERN = Regex("""(?i)object:\s*(.+?)\s*\((\d*\.?\d+)\)""")
@@ -108,7 +109,7 @@ class VisionRouter @Inject constructor(
                     stability = 0.9f,
                     ttlMs = PerceptionCache.DefaultTtl.TEXT_MS
                 )
-                perceptionCache.put(CACHE_KEY_SCENE, sceneData, PerceptionCache.DefaultTtl.TEXT_MS)
+                perceptionCache.put(CACHE_KEY_SCENE_PREPROCESSED, sceneData, PerceptionCache.DefaultTtl.TEXT_MS)
                 return Result.success(sceneData)
             }
         }
