@@ -15,7 +15,8 @@ data class ActionResult(
 
 @Singleton
 class ActionExecutor @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val contactPreferenceManager: ContactPreferenceManager
 ) {
     private val callAction by lazy { CallAction(context) }
     private val messageAction by lazy { MessageAction(context) }
@@ -35,10 +36,25 @@ class ActionExecutor @Inject constructor(
         }
     }
 
-    private fun executeCall(intent: VzorIntent): ActionResult {
+    private suspend fun executeCall(intent: VzorIntent): ActionResult {
         val contactName = intent.slots["contact"] ?: intent.slots["name"]
             ?: return ActionResult(false, "Не указан контакт для звонка")
-        return callAction.call(contactName)
+
+        // UC#9: используем ContactPreferenceManager для разрешения неоднозначных контактов
+        return when (val result = contactPreferenceManager.resolveContact(contactName)) {
+            is ContactPreferenceManager.ContactLookupResult.SingleMatch ->
+                callAction.call(result.contact.displayName)
+            is ContactPreferenceManager.ContactLookupResult.PreferredMatch ->
+                callAction.call(result.contact.displayName)
+            is ContactPreferenceManager.ContactLookupResult.MultipleMatches ->
+                ActionResult(
+                    success = false,
+                    message = contactPreferenceManager.formatDisambiguationMessage(result),
+                    requiresConfirmation = true
+                )
+            is ContactPreferenceManager.ContactLookupResult.NotFound ->
+                ActionResult(false, "Контакт \"$contactName\" не найден в телефонной книге")
+        }
     }
 
     private fun executeMessage(intent: VzorIntent): ActionResult {

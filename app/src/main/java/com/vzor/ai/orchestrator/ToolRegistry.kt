@@ -10,6 +10,10 @@ import com.vzor.ai.domain.repository.VisionRepository
 import com.vzor.ai.glasses.GlassesManager
 import com.vzor.ai.translation.TranslationManager
 import com.vzor.ai.translation.TranslationMode
+import com.vzor.ai.vision.AccessibilityHelper
+import com.vzor.ai.vision.FoodAnalysisPrompts
+import com.vzor.ai.vision.PlaceIdentificationHelper
+import com.vzor.ai.vision.ShoppingComparisonHelper
 import com.vzor.ai.data.remote.TavilySearchService
 import com.vzor.ai.data.local.PreferencesManager
 import kotlinx.coroutines.flow.first
@@ -19,10 +23,10 @@ import javax.inject.Singleton
 /**
  * Tool Registry — маппинг LLM tool calls к сервисам приложения.
  *
- * Поддерживаемые инструменты (12 из ТЗ):
+ * Поддерживаемые инструменты (16):
  * 1. vision.getScene    — описание сцены с камеры
  * 2. vision.describe    — описание изображения
- * 3. action.capture     — фото с камеры очков (NEW)
+ * 3. action.capture     — фото с камеры очков
  * 4. web.search         — поиск через Tavily
  * 5. action.call        — исходящий звонок
  * 6. action.message     — отправка сообщения
@@ -30,8 +34,12 @@ import javax.inject.Singleton
  * 8. action.playMusic   — управление музыкой
  * 9. memory.get         — получить из памяти
  * 10. memory.set        — сохранить в память
- * 11. translate         — перевод текста (NEW)
+ * 11. translate         — перевод текста
  * 12. audio.fingerprint — распознавание музыки (заглушка, нужен ACRCloud)
+ * 13. vision.food          — анализ еды: калории, БЖУ, ингредиенты (UC#4)
+ * 14. vision.shopping      — шопинг: анализ товара, сравнение, ценники (UC#5)
+ * 15. vision.accessibility — доступность: описание окружения, навигация (UC#8)
+ * 16. vision.place         — идентификация мест и достопримечательностей (UC#2)
  */
 @Singleton
 class ToolRegistry @Inject constructor(
@@ -125,6 +133,35 @@ class ToolRegistry @Inject constructor(
             name = "audio.fingerprint",
             description = "Распознать играющую музыку (Shazam-подобный)",
             parameters = emptyMap()
+        ),
+        ToolDescription(
+            name = "vision.food",
+            description = "Анализ еды: определить блюдо, калорийность, БЖУ, ингредиенты",
+            parameters = mapOf(
+                "mode" to "string: Режим (full, calories, ingredients) — по умолчанию full"
+            )
+        ),
+        ToolDescription(
+            name = "vision.shopping",
+            description = "Шопинг-помощник: анализ товара, сравнение цен, чтение ценников",
+            parameters = mapOf(
+                "mode" to "string: Режим (analyze, compare, price) — по умолчанию analyze",
+                "query" to "string: Дополнительный вопрос о товаре — необязательно"
+            )
+        ),
+        ToolDescription(
+            name = "vision.accessibility",
+            description = "Помощь слабовидящим: описание окружения, чтение текста, навигация",
+            parameters = mapOf(
+                "mode" to "string: Режим (scene, read, navigate, identify) — по умолчанию scene"
+            )
+        ),
+        ToolDescription(
+            name = "vision.place",
+            description = "Идентификация здания, места или достопримечательности",
+            parameters = mapOf(
+                "query" to "string: Дополнительный вопрос о месте — необязательно"
+            )
         )
     )
 
@@ -148,6 +185,10 @@ class ToolRegistry @Inject constructor(
                 "action.message" -> executeActionMessage(args)
                 "action.navigate" -> executeActionNavigate(args)
                 "action.playMusic" -> executeActionPlayMusic(args)
+                "vision.food" -> executeVisionFood(args)
+                "vision.shopping" -> executeVisionShopping(args)
+                "vision.accessibility" -> executeVisionAccessibility(args)
+                "vision.place" -> executeVisionPlace(args)
                 "audio.fingerprint" -> ToolResult(
                     success = false,
                     output = "audio.fingerprint пока не реализован (нужен ACRCloud API ключ)"
@@ -285,6 +326,76 @@ class ToolRegistry @Inject constructor(
         )
         val result = actionExecutor.execute(intent)
         return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeVisionFood(args: Map<String, String>): ToolResult {
+        val photo = glassesManager.capturePhoto()
+            ?: return ToolResult(false, "Не удалось получить кадр с камеры")
+
+        val mode = args["mode"]?.lowercase() ?: "full"
+        val prompt = when (mode) {
+            "calories" -> FoodAnalysisPrompts.buildQuickCaloriePrompt()
+            "ingredients" -> FoodAnalysisPrompts.buildIngredientsPrompt()
+            else -> FoodAnalysisPrompts.buildAnalysisPrompt(args["query"] ?: "Что это за блюдо?")
+        }
+
+        val result = visionRepository.analyzeImage(photo, prompt)
+        return result.fold(
+            onSuccess = { ToolResult(true, it) },
+            onFailure = { ToolResult(false, "Ошибка анализа еды: ${it.message}") }
+        )
+    }
+
+    private suspend fun executeVisionShopping(args: Map<String, String>): ToolResult {
+        val photo = glassesManager.capturePhoto()
+            ?: return ToolResult(false, "Не удалось получить кадр с камеры")
+
+        val mode = args["mode"]?.lowercase() ?: "analyze"
+        val userQuery = args["query"] ?: "Проанализируй товар"
+        val prompt = when (mode) {
+            "compare" -> ShoppingComparisonHelper.buildComparisonPrompt()
+            "price" -> ShoppingComparisonHelper.buildPriceTagPrompt()
+            else -> ShoppingComparisonHelper.buildProductAnalysisPrompt(userQuery)
+        }
+
+        val result = visionRepository.analyzeImage(photo, prompt)
+        return result.fold(
+            onSuccess = { ToolResult(true, it) },
+            onFailure = { ToolResult(false, "Ошибка анализа товара: ${it.message}") }
+        )
+    }
+
+    private suspend fun executeVisionAccessibility(args: Map<String, String>): ToolResult {
+        val photo = glassesManager.capturePhoto()
+            ?: return ToolResult(false, "Не удалось получить кадр с камеры")
+
+        val mode = args["mode"]?.lowercase() ?: "scene"
+        val prompt = when (mode) {
+            "read" -> AccessibilityHelper.buildReadAloudPrompt()
+            "navigate" -> AccessibilityHelper.buildNavigationAssistPrompt()
+            "identify" -> AccessibilityHelper.buildObjectIdentificationPrompt(args["query"] ?: "Что это?")
+            else -> AccessibilityHelper.buildSceneDescriptionPrompt()
+        }
+
+        val result = visionRepository.analyzeImage(photo, prompt)
+        return result.fold(
+            onSuccess = { ToolResult(true, it) },
+            onFailure = { ToolResult(false, "Ошибка анализа: ${it.message}") }
+        )
+    }
+
+    private suspend fun executeVisionPlace(args: Map<String, String>): ToolResult {
+        val photo = glassesManager.capturePhoto()
+            ?: return ToolResult(false, "Не удалось получить кадр с камеры")
+
+        val userQuery = args["query"] ?: "Что это за место?"
+        val prompt = PlaceIdentificationHelper.buildPlaceIdentificationPrompt(userQuery)
+
+        val result = visionRepository.analyzeImage(photo, prompt)
+        return result.fold(
+            onSuccess = { ToolResult(true, it) },
+            onFailure = { ToolResult(false, "Ошибка идентификации места: ${it.message}") }
+        )
     }
 
     private suspend fun executeActionPlayMusic(args: Map<String, String>): ToolResult {

@@ -190,6 +190,67 @@ class IntentClassifier @Inject constructor() {
                 WeightedKeyword("выключи фокус", 1.0f)
             ),
             baseConfidence = 0.85f
+        ),
+        // Food Analysis (UC#4: анализ еды и калорийности)
+        IntentRule(
+            intentType = IntentType.FOOD_ANALYSIS,
+            keywords = listOf(
+                WeightedKeyword("сколько калорий", 1.0f),
+                WeightedKeyword("калорийность", 1.0f),
+                WeightedKeyword("что за блюдо", 1.0f),
+                WeightedKeyword("что за еда", 0.9f),
+                WeightedKeyword("из чего приготовлено", 0.9f),
+                WeightedKeyword("бжу", 0.9f),
+                WeightedKeyword("состав блюда", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
+        ),
+        // Shopping Assist (UC#5: шопинг-помощник)
+        IntentRule(
+            intentType = IntentType.SHOPPING_ASSIST,
+            keywords = listOf(
+                WeightedKeyword("сколько стоит", 1.0f),
+                WeightedKeyword("какая цена", 1.0f),
+                WeightedKeyword("сравни товар", 1.0f),
+                WeightedKeyword("что лучше купить", 0.9f),
+                WeightedKeyword("прочитай ценник", 1.0f),
+                WeightedKeyword("прочитай этикетку", 0.9f),
+                WeightedKeyword("стоит ли покупать", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
+        ),
+        // Accessibility (UC#8: Be My Eyes — помощь слабовидящим)
+        IntentRule(
+            intentType = IntentType.ACCESSIBILITY,
+            keywords = listOf(
+                WeightedKeyword("что вокруг меня", 1.0f),
+                WeightedKeyword("опиши окружение", 1.0f),
+                WeightedKeyword("помоги пройти", 1.0f),
+                WeightedKeyword("что впереди", 0.9f),
+                WeightedKeyword("есть ли препятстви", 0.9f),
+                WeightedKeyword("прочитай вслух", 1.0f),
+                WeightedKeyword("что я держу", 0.9f),
+                WeightedKeyword("безопасно ли", 0.8f)
+            ),
+            baseConfidence = 0.9f,
+            requiresVision = true
+        ),
+        // Place Identification (UC#2: идентификация мест)
+        IntentRule(
+            intentType = IntentType.PLACE_IDENTIFY,
+            keywords = listOf(
+                WeightedKeyword("что за здание", 1.0f),
+                WeightedKeyword("что за место", 1.0f),
+                WeightedKeyword("где я нахожусь", 1.0f),
+                WeightedKeyword("достопримечательност", 0.9f),
+                WeightedKeyword("что за магазин", 0.9f),
+                WeightedKeyword("что за ресторан", 0.9f),
+                WeightedKeyword("какое здание", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
         )
     )
 

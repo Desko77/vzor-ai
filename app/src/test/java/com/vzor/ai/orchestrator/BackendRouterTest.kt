@@ -142,7 +142,8 @@ class BackendRouterTest {
     @Test
     fun `X2 memory pressure routes to CLOUD even when X2 available`() {
         val modelManager = mockk<ModelRuntimeManager> {
-            every { usedMemoryMb } returns MutableStateFlow(90_000) // > 86400 threshold
+            every { usedMemoryMb } returns MutableStateFlow(90_000) // > 90% of 96000
+            every { totalMemoryMb } returns MutableStateFlow(96_000)
             every { getLoadedModels() } returns emptyList()
         }
         val routerWithModels = BackendRouter(
@@ -158,7 +159,8 @@ class BackendRouterTest {
     @Test
     fun `X2 without memory pressure routes to LOCAL_AI`() {
         val modelManager = mockk<ModelRuntimeManager> {
-            every { usedMemoryMb } returns MutableStateFlow(50_000) // < 86400 threshold
+            every { usedMemoryMb } returns MutableStateFlow(50_000) // < 90% of 96000
+            every { totalMemoryMb } returns MutableStateFlow(96_000)
             every { getLoadedModels() } returns emptyList()
         }
         val routerWithModels = BackendRouter(

@@ -4,6 +4,8 @@ import android.util.Log
 import com.vzor.ai.domain.model.VoiceEvent
 import com.vzor.ai.domain.model.VoiceState
 import com.vzor.ai.speech.SttService
+import com.vzor.ai.speech.WakeWordListener
+import com.vzor.ai.speech.WakeWordService
 import com.vzor.ai.tts.TtsService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,8 +33,10 @@ import javax.inject.Singleton
 class VoiceOrchestrator @Inject constructor(
     private val sttService: SttService,
     private val ttsService: TtsService,
-    private val intentClassifier: IntentClassifier
-) : Closeable {
+    private val intentClassifier: IntentClassifier,
+    private val wakeWordService: WakeWordService,
+    private val backendRouter: BackendRouter
+) : Closeable, WakeWordListener {
     companion object {
         private const val TAG = "VoiceOrchestrator"
         private const val ERROR_RECOVERY_DELAY_MS = 3000L
@@ -48,6 +52,23 @@ class VoiceOrchestrator @Inject constructor(
 
     /** Listeners for state transitions (telemetry, UI, etc.). */
     private val transitionListeners = CopyOnWriteArrayList<(VoiceState, VoiceState, VoiceEvent) -> Unit>()
+
+    init {
+        // Подключаем wake word detection → FSM
+        wakeWordService.setListener(this)
+    }
+
+    /**
+     * WakeWordListener callback: wake word "Взор" обнаружено.
+     * Подавляем если BackendRouter детектирует музыку (AudioContext.MUSIC).
+     */
+    override fun onWakeWordDetected() {
+        if (backendRouter.shouldSuppressStt) {
+            Log.d(TAG, "Wake word suppressed (music playing)")
+            return
+        }
+        onEvent(VoiceEvent.WakeWordDetected)
+    }
 
     /**
      * Submit a [VoiceEvent] to the FSM for processing.
@@ -84,6 +105,8 @@ class VoiceOrchestrator @Inject constructor(
 
     /** Release resources and cancel the internal coroutine scope. */
     override fun close() {
+        wakeWordService.clearListener()
+        wakeWordService.stopListening()
         errorRecoveryJob?.cancel()
         scope.cancel()
     }
