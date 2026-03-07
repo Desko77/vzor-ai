@@ -4,7 +4,6 @@ import android.util.Log
 import com.vzor.ai.actions.ActionExecutor
 import com.vzor.ai.actions.VideoCaptureAction
 import com.vzor.ai.domain.model.IntentType
-import com.vzor.ai.domain.model.MemoryFact
 import com.vzor.ai.domain.model.VzorIntent
 import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository

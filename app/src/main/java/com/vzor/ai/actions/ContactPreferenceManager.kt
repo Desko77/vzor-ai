@@ -142,6 +142,7 @@ class ContactPreferenceManager @Inject constructor(
         }
     }
 
+    @Synchronized
     private fun findContactsByName(name: String): List<ContactMatch> {
         // Проверяем кеш
         val now = System.currentTimeMillis()

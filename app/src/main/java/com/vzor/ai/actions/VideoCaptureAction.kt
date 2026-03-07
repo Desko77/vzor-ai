@@ -2,7 +2,11 @@ package com.vzor.ai.actions
 
 import android.util.Log
 import com.vzor.ai.glasses.GlassesManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,9 +35,12 @@ class VideoCaptureAction @Inject constructor(
 
     private val _isRecording = AtomicBoolean(false)
     private val isRecording: Boolean get() = _isRecording.get()
+    private var autoStopJob: Job? = null
 
     /**
-     * Начинает запись видео.
+     * Начинает запись видео (fire-and-forget).
+     * Возвращает результат сразу, запись идёт в фоне.
+     * Останавливается по таймеру или вызовом stopRecording().
      *
      * @param durationSeconds Максимальная длительность записи.
      * @return ActionResult с информацией о начале записи.
@@ -58,21 +65,20 @@ class VideoCaptureAction @Inject constructor(
 
         return try {
             glassesManager.startCameraStream()
-
             Log.d(TAG, "Video recording started (max ${duration}s)")
 
-            // Ждём указанную длительность или пока не остановят
-            var elapsed = 0
-            while (isRecording && elapsed < duration) {
-                delay(1000)
-                elapsed++
+            // Авто-остановка в фоне — не блокирует voice pipeline
+            autoStopJob = CoroutineScope(Dispatchers.Default).launch {
+                delay(duration * 1000L)
+                if (isRecording) {
+                    Log.d(TAG, "Auto-stopping after ${duration}s")
+                    stopRecordingInternal()
+                }
             }
-
-            stopRecordingInternal()
 
             ActionResult(
                 success = true,
-                message = "Видео записано (${elapsed} сек)"
+                message = "Запись видео начата (макс. ${duration} сек). Скажите «стоп» для остановки."
             )
         } catch (e: Exception) {
             Log.e(TAG, "Video recording failed", e)
@@ -117,6 +123,8 @@ class VideoCaptureAction @Inject constructor(
 
     private fun stopRecordingInternal() {
         if (_isRecording.getAndSet(false)) {
+            autoStopJob?.cancel()
+            autoStopJob = null
             try {
                 glassesManager.stopCameraStream()
             } catch (e: Exception) {
