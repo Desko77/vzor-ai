@@ -183,6 +183,29 @@ class AiRepositoryImpl @Inject constructor(
         tools: List<ToolDefinition>,
         toolResults: List<ToolCallWithResult>
     ): Flow<StreamChunk> = flow {
+        when (prefs.aiProvider.first()) {
+            AiProvider.CLAUDE -> {
+                streamClaudeToolContinuation(messages, tools, toolResults).collect { emit(it) }
+            }
+            AiProvider.OPENAI -> {
+                // OpenAI: добавляем tool results как assistant+tool messages и повторяем
+                val augmented = buildOpenAiToolContinuationMessages(messages, toolResults)
+                streamOpenAiWithTools(augmented, tools).collect { emit(it) }
+            }
+            else -> {
+                // Для провайдеров без нативного tool use: формируем текстовый контекст
+                val contextMsg = buildToolResultTextMessage(messages, toolResults)
+                streamMessage(contextMsg).collect { emit(StreamChunk.Text(it)) }
+                emit(StreamChunk.Done("end_turn"))
+            }
+        }
+    }
+
+    private fun streamClaudeToolContinuation(
+        messages: List<Message>,
+        tools: List<ToolDefinition>,
+        toolResults: List<ToolCallWithResult>
+    ): Flow<StreamChunk> = flow {
         val apiKey = prefs.claudeApiKey.first()
         require(apiKey.isNotBlank()) { "API ключ Claude не указан" }
 
@@ -219,6 +242,31 @@ class AiRepositoryImpl @Inject constructor(
                 tools = claudeTools.ifEmpty { null }
             )
         ).collect { emit(it) }
+    }
+
+    private fun buildOpenAiToolContinuationMessages(
+        messages: List<Message>,
+        toolResults: List<ToolCallWithResult>
+    ): List<Message> {
+        val augmented = messages.toMutableList()
+        // Добавляем результаты инструментов как системное сообщение
+        val toolContext = toolResults.joinToString("\n") { tr ->
+            "Tool ${tr.toolName} result: ${tr.result.output}"
+        }
+        augmented.add(Message(role = MessageRole.USER, content = "Tool results:\n$toolContext\n\nPlease continue based on these results."))
+        return augmented
+    }
+
+    private fun buildToolResultTextMessage(
+        messages: List<Message>,
+        toolResults: List<ToolCallWithResult>
+    ): List<Message> {
+        val augmented = messages.toMutableList()
+        val toolContext = toolResults.joinToString("\n") { tr ->
+            "[${tr.toolName}]: ${tr.result.output}"
+        }
+        augmented.add(Message(role = MessageRole.USER, content = "Результаты инструментов:\n$toolContext\n\nОтветь на основе этих данных."))
+        return augmented
     }
 
     override fun streamMessage(messages: List<Message>): Flow<String> = flow {

@@ -46,7 +46,8 @@ import javax.inject.Singleton
 class YandexSttService @Inject constructor(
     @ApplicationContext private val context: Context,
     private val prefs: PreferencesManager,
-    private val audioStreamHandler: AudioStreamHandler
+    private val audioStreamHandler: AudioStreamHandler,
+    baseHttpClient: OkHttpClient
 ) : SttService {
 
     companion object {
@@ -74,7 +75,8 @@ class YandexSttService @Inject constructor(
     @Volatile
     private var activeWebSocket: WebSocket? = null
 
-    private val httpClient = OkHttpClient.Builder()
+    /** OkHttpClient с таймаутами для WebSocket STT (наследует interceptors от baseHttpClient). */
+    private val httpClient = baseHttpClient.newBuilder()
         .connectTimeout(WS_CONNECT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
         .readTimeout(MAX_RECORDING_DURATION_MS + 5000, java.util.concurrent.TimeUnit.MILLISECONDS)
         .writeTimeout(10, java.util.concurrent.TimeUnit.SECONDS)

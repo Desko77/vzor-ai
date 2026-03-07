@@ -158,6 +158,81 @@ class MediaPipeVisionProcessor @Inject constructor(
     }
 
     /**
+     * Результат пакетного анализа всех детекторов за один проход.
+     */
+    data class BatchResult(
+        val faces: List<SceneElement.FaceDetection>,
+        val objects: List<SceneElement.DetectedObject>,
+        val gestures: List<String>
+    )
+
+    /**
+     * Пакетный анализ: декодирует Bitmap один раз и прогоняет через все три детектора.
+     * Экономит 2 лишних декодирования по сравнению с вызовом detect* по отдельности.
+     */
+    fun detectAll(imageBytes: ByteArray): BatchResult {
+        val bitmap = try {
+            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to decode bitmap for batch detection", e)
+            null
+        }
+
+        if (bitmap == null) {
+            return BatchResult(emptyList(), emptyList(), emptyList())
+        }
+
+        val mpImage = BitmapImageBuilder(bitmap).build()
+
+        val faces = try {
+            faceDetector.detect(mpImage).detections().map { detection ->
+                val keypoints = detection.keypoints().orElse(emptyList())
+                val landmarks = keypoints.map { kp -> PointF(kp.x(), kp.y()) }
+                SceneElement.FaceDetection(
+                    landmarks = landmarks,
+                    confidence = detection.categories().firstOrNull()?.score() ?: 0f,
+                    headEulerAngles = emptyList()
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Face detection failed in batch", e)
+            emptyList()
+        }
+
+        val objects = try {
+            objectDetector.detect(mpImage).detections().flatMap { detection ->
+                val bbox = detection.boundingBox()
+                val rectF = RectF(bbox.left.toFloat(), bbox.top.toFloat(),
+                    bbox.right.toFloat(), bbox.bottom.toFloat())
+                detection.categories().map { category ->
+                    SceneElement.DetectedObject(
+                        label = category.categoryName() ?: "unknown",
+                        confidence = category.score(),
+                        bbox = rectF
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Object detection failed in batch", e)
+            emptyList()
+        }
+
+        val gestures = try {
+            gestureRecognizer.recognize(mpImage).gestures().flatMap { gestureList ->
+                gestureList
+                    .filter { it.score() >= GESTURE_MIN_CONFIDENCE }
+                    .filter { it.categoryName() != "None" }
+                    .map { it.categoryName() ?: "unknown" }
+            }.distinct()
+        } catch (e: Exception) {
+            Log.w(TAG, "Gesture detection failed in batch", e)
+            emptyList()
+        }
+
+        return BatchResult(faces, objects, gestures)
+    }
+
+    /**
      * Освобождает ресурсы детекторов.
      */
     fun release() {
