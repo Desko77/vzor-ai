@@ -54,7 +54,7 @@ object AccessibilityHelper {
     /** Промпт для идентификации предмета в руке. */
     fun buildObjectIdentificationPrompt(userQuery: String): String = """
         |Человек с нарушением зрения держит предмет или указывает на него.
-        |Запрос: $userQuery
+        |Запрос: <user_request>$userQuery</user_request>
         |
         |Определи:
         |1. Что это за предмет

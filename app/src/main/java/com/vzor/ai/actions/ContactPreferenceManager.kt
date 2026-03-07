@@ -174,8 +174,8 @@ class ContactPreferenceManager @Inject constructor(
             }
         } catch (_: SecurityException) {
             // READ_CONTACTS permission not granted
-        } catch (_: Exception) {
-            // Other errors
+        } catch (e: Exception) {
+            android.util.Log.w("ContactPreference", "Contact lookup error", e)
         } finally {
             cursor?.close()
         }

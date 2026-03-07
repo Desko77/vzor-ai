@@ -53,7 +53,7 @@ class ActionExecutor @Inject constructor(
                     requiresConfirmation = true
                 )
             is ContactPreferenceManager.ContactLookupResult.NotFound ->
-                callAction.call(contactName)
+                ActionResult(false, "Контакт \"$contactName\" не найден в телефонной книге")
         }
     }
 

@@ -18,7 +18,7 @@ object PlaceIdentificationHelper {
     fun buildPlaceIdentificationPrompt(userQuery: String): String = """
         |Определи здание, место или достопримечательность на фотографии.
         |
-        |Запрос пользователя: $userQuery
+        |Запрос пользователя: <user_request>$userQuery</user_request>
         |
         |Укажи:
         |🏛 Название: [название места]

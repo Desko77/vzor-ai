@@ -18,7 +18,7 @@ object FoodAnalysisPrompts {
     fun buildAnalysisPrompt(userQuery: String): String = """
         |Ты — эксперт-диетолог. Проанализируй фотографию еды.
         |
-        |Запрос пользователя: $userQuery
+        |Запрос пользователя: <user_request>$userQuery</user_request>
         |
         |Ответь в следующем формате:
         |🍽 Блюдо: [название блюда]

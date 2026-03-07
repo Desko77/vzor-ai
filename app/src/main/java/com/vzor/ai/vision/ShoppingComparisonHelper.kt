@@ -18,7 +18,7 @@ object ShoppingComparisonHelper {
     fun buildProductAnalysisPrompt(userQuery: String): String = """
         |Ты — помощник по покупкам. Проанализируй товар на фотографии.
         |
-        |Запрос пользователя: $userQuery
+        |Запрос пользователя: <user_request>$userQuery</user_request>
         |
         |Определи:
         |📦 Товар: [название, бренд]
