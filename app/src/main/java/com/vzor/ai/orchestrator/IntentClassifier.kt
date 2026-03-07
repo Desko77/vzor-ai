@@ -16,7 +16,7 @@ class IntentClassifier @Inject constructor() {
 
     companion object {
         /** Предкомпилированный regex для разбиения на слова. */
-        private val WHITESPACE_REGEX = WHITESPACE_REGEX
+        private val WHITESPACE_REGEX = "\\s+".toRegex()
     }
 
     private data class WeightedKeyword(

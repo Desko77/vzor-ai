@@ -16,7 +16,8 @@ data class ActionResult(
 @Singleton
 class ActionExecutor @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val contactPreferenceManager: ContactPreferenceManager
+    private val contactPreferenceManager: ContactPreferenceManager,
+    private val photoCaptureAction: PhotoCaptureAction
 ) {
     private val callAction by lazy { CallAction(context) }
     private val messageAction by lazy { MessageAction(context) }
@@ -31,6 +32,7 @@ class ActionExecutor @Inject constructor(
             IntentType.PLAY_MUSIC -> executeMusic(intent)
             IntentType.NAVIGATE -> executeNavigation(intent)
             IntentType.SET_REMINDER -> executeReminder(intent)
+            IntentType.CAPTURE_PHOTO -> photoCaptureAction.capture()
             IntentType.WEB_SEARCH -> executeWebSearch(intent)
             else -> ActionResult(false, "Действие не поддерживается")
         }

@@ -19,7 +19,8 @@ enum class AiProvider(val displayName: String) {
 enum class SttProvider(val displayName: String) {
     WHISPER("OpenAI Whisper"),
     YANDEX("Yandex SpeechKit"),
-    GOOGLE("Google STT")
+    GOOGLE("Google STT"),
+    OFFLINE("Офлайн (On-Device)")
 }
 
 enum class TtsProvider(val displayName: String) {
