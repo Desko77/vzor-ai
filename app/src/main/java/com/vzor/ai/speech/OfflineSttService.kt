@@ -48,6 +48,21 @@ class OfflineSttService @Inject constructor(
     private val _isListening = AtomicBoolean(false)
     override val isListening: Boolean get() = _isListening.get()
 
+    init {
+        // Очищаем WAV файлы, оставшиеся после crash
+        cleanupStaleWavFiles()
+    }
+
+    private fun cleanupStaleWavFiles() {
+        try {
+            context.cacheDir.listFiles()?.filter {
+                it.name.startsWith("offline_stt_") && it.name.endsWith(".wav")
+            }?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cleanup stale WAV files", e)
+        }
+    }
+
     /**
      * Записывает аудио с микрофона и возвращает результат распознавания.
      *

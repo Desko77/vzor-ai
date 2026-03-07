@@ -4,6 +4,8 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -66,6 +68,7 @@ class SpeakerDiarizer @Inject constructor() {
     /** Текущий говорящий (обновляется в реальном времени). */
     val currentSpeaker: StateFlow<Speaker> = _currentSpeaker.asStateFlow()
 
+    private val mutex = Mutex()
     private val segments = mutableListOf<SpeechSegment>()
     private var lastSpeechEndMs: Long = 0L
     private var currentSegmentStartMs: Long = 0L
@@ -78,7 +81,7 @@ class SpeakerDiarizer @Inject constructor() {
      * @param timestampMs Временная метка начала фрейма.
      * @param isFromGlassesMic true если фрейм с микрофона очков (направленный).
      */
-    fun processFrame(pcmFrame: ByteArray, timestampMs: Long, isFromGlassesMic: Boolean = true) {
+    suspend fun processFrame(pcmFrame: ByteArray, timestampMs: Long, isFromGlassesMic: Boolean = true) = mutex.withLock {
         val rms = calculateRms(pcmFrame)
 
         if (rms > SILENCE_RMS_THRESHOLD) {
@@ -132,12 +135,14 @@ class SpeakerDiarizer @Inject constructor() {
     /**
      * Возвращает все накопленные сегменты речи.
      */
-    fun getSegments(): List<SpeechSegment> = segments.toList()
+    suspend fun getSegments(): List<SpeechSegment> = mutex.withLock {
+        segments.toList()
+    }
 
     /**
      * Очищает накопленные сегменты (начало новой сессии).
      */
-    fun reset() {
+    suspend fun reset() = mutex.withLock {
         segments.clear()
         _currentSpeaker.value = Speaker.UNKNOWN
         lastSpeechEndMs = 0L
@@ -149,8 +154,8 @@ class SpeakerDiarizer @Inject constructor() {
     /**
      * Привязывает текст к последнему сегменту текущего говорящего.
      */
-    fun attachText(text: String) {
-        val last = segments.lastOrNull() ?: return
+    suspend fun attachText(text: String) = mutex.withLock {
+        val last = segments.lastOrNull() ?: return@withLock
         segments[segments.lastIndex] = last.copy(text = text)
     }
 

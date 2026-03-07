@@ -481,8 +481,13 @@ data class ToolResult(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ToolResult) return false
-        return success == other.success && output == other.output
+        return success == other.success && output == other.output &&
+            imageData.contentEquals(other.imageData)
     }
 
-    override fun hashCode(): Int = 31 * success.hashCode() + output.hashCode()
+    override fun hashCode(): Int {
+        var result = 31 * success.hashCode() + output.hashCode()
+        result = 31 * result + (imageData?.contentHashCode() ?: 0)
+        return result
+    }
 }

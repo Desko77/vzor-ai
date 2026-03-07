@@ -81,8 +81,10 @@ class TranslationManager @Inject constructor(
      * Creates a new session and begins the STT listening pipeline.
      */
     fun startTranslation(mode: TranslationMode) {
-        // Stop any existing session
+        // Гарантированно останавливаем предыдущую сессию и отменяем scope
         stopTranslation()
+
+        check(translationScope == null) { "Previous scope not cleaned up" }
 
         val sessionId = UUID.randomUUID().toString()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

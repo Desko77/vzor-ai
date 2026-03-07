@@ -12,8 +12,8 @@ import javax.inject.Singleton
  * - "Сфотографируй" → одиночное фото с камеры очков
  * - "Сделай снимок" → одиночное фото
  *
- * Результат: JPEG bytes возвращаются в ActionResult.imageData
- * для последующего сохранения или анализа VLM.
+ * Результат: JPEG bytes сохраняются через GlassesManager,
+ * ActionResult содержит статус и размер фото.
  */
 @Singleton
 class PhotoCaptureAction @Inject constructor(
