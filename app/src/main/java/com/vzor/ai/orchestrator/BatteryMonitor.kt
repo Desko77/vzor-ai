@@ -94,7 +94,9 @@ class BatteryMonitor @Inject constructor(
             addAction(Intent.ACTION_BATTERY_LOW)
             addAction(Intent.ACTION_BATTERY_OKAY)
         }
-        context.registerReceiver(batteryReceiver, filter)
+        androidx.core.content.ContextCompat.registerReceiver(
+            context, batteryReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         Log.d(TAG, "Battery monitoring started")
     }
 

@@ -11,11 +11,6 @@ import androidx.core.app.NotificationCompat
 import com.vzor.ai.domain.model.GlassesState
 import com.vzor.ai.domain.model.VoiceState
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,8 +40,6 @@ class GlassesNotificationManager @Inject constructor(
 
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
         createChannels()

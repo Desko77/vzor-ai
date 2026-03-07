@@ -27,7 +27,9 @@ class AcousticEchoCanceller @Inject constructor() {
         private const val TAG = "AcousticEchoCanceller"
     }
 
+    @Volatile
     private var echoCanceler: AcousticEchoCanceler? = null
+    @Volatile
     private var isEnabled = false
 
     /**

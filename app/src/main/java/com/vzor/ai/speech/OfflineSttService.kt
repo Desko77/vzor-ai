@@ -80,7 +80,6 @@ class OfflineSttService @Inject constructor(
             Log.e(TAG, "Offline STT failed", e)
         } finally {
             _isListening.set(false)
-            close()
         }
 
         awaitClose {
