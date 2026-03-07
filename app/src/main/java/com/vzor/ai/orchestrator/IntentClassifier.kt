@@ -169,6 +169,32 @@ class IntentClassifier @Inject constructor() {
             baseConfidence = 0.9f,
             requiresVision = true
         ),
+        // Capture Video (UC#11: видео hands-free)
+        IntentRule(
+            intentType = IntentType.CAPTURE_VIDEO,
+            keywords = listOf(
+                WeightedKeyword("запиши видео", 1.0f),
+                WeightedKeyword("сними видео", 1.0f),
+                WeightedKeyword("начни запись", 1.0f),
+                WeightedKeyword("запись видео", 0.9f),
+                WeightedKeyword("видеозапись", 0.9f, fuzzyThreshold = 1)
+            ),
+            baseConfidence = 0.9f,
+            requiresVision = true
+        ),
+        // Identify Music (UC#16: распознавание музыки)
+        IntentRule(
+            intentType = IntentType.IDENTIFY_MUSIC,
+            keywords = listOf(
+                WeightedKeyword("что за песня", 1.0f),
+                WeightedKeyword("что играет", 1.0f),
+                WeightedKeyword("какая песня", 1.0f),
+                WeightedKeyword("распознай музыку", 1.0f),
+                WeightedKeyword("что за трек", 0.9f),
+                WeightedKeyword("шазам", 0.9f, fuzzyThreshold = 1)
+            ),
+            baseConfidence = 0.9f
+        ),
         // Live Commentary (UC#6: непрерывный AI-комментарий)
         IntentRule(
             intentType = IntentType.LIVE_COMMENTARY,

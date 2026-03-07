@@ -1,5 +1,6 @@
 package com.vzor.ai.speech
 
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -19,33 +20,33 @@ class SpeakerDiarizerTest {
     }
 
     @Test
-    fun `silence frame does not change speaker`() {
+    fun `silence frame does not change speaker`() = runTest {
         val silentFrame = ByteArray(320) // 10ms at 16kHz, 16-bit = 320 bytes, all zeros
         diarizer.processFrame(silentFrame, 0L)
         assertEquals(SpeakerDiarizer.Speaker.UNKNOWN, diarizer.currentSpeaker.value)
     }
 
     @Test
-    fun `loud frame from glasses mic sets speaker to USER`() {
+    fun `loud frame from glasses mic sets speaker to USER`() = runTest {
         val loudFrame = createLoudFrame(320, 5000)
         diarizer.processFrame(loudFrame, 0L, isFromGlassesMic = true)
         assertEquals(SpeakerDiarizer.Speaker.USER, diarizer.currentSpeaker.value)
     }
 
     @Test
-    fun `loud frame from phone mic sets speaker to INTERLOCUTOR`() {
+    fun `loud frame from phone mic sets speaker to INTERLOCUTOR`() = runTest {
         val loudFrame = createLoudFrame(320, 5000)
         diarizer.processFrame(loudFrame, 0L, isFromGlassesMic = false)
         assertEquals(SpeakerDiarizer.Speaker.INTERLOCUTOR, diarizer.currentSpeaker.value)
     }
 
     @Test
-    fun `segments are empty initially`() {
+    fun `segments are empty initially`() = runTest {
         assertTrue(diarizer.getSegments().isEmpty())
     }
 
     @Test
-    fun `speech segment is created after silence`() {
+    fun `speech segment is created after silence`() = runTest {
         val loud = createLoudFrame(320, 5000)
         val silent = ByteArray(320)
 
@@ -66,7 +67,7 @@ class SpeakerDiarizerTest {
     }
 
     @Test
-    fun `reset clears all state`() {
+    fun `reset clears all state`() = runTest {
         val loud = createLoudFrame(320, 5000)
         val silent = ByteArray(320)
 
@@ -81,7 +82,7 @@ class SpeakerDiarizerTest {
     }
 
     @Test
-    fun `attachText updates last segment`() {
+    fun `attachText updates last segment`() = runTest {
         val loud = createLoudFrame(320, 5000)
         val silent = ByteArray(320)
 
@@ -96,7 +97,7 @@ class SpeakerDiarizerTest {
     }
 
     @Test
-    fun `speaker switches after long pause`() {
+    fun `speaker switches after long pause`() = runTest {
         val loud = createLoudFrame(320, 5000)
         val silent = ByteArray(320)
 

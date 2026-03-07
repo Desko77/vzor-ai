@@ -21,6 +21,8 @@ enum class IntentType {
     MEMORY_QUERY,       // "Где я припарковался?" → Persistent Memory
     REPEAT_LAST,        // "Повтори" → SessionLog
     CAPTURE_PHOTO,      // "Сфотографируй" → GlassesManager.capturePhoto (UC#11)
+    CAPTURE_VIDEO,      // "Запиши видео" → GlassesManager camera stream (UC#11)
+    IDENTIFY_MUSIC,     // "Что за песня?" → ACRCloud audio fingerprint (UC#16)
     LIVE_COMMENTARY,    // "Включи комментарий" → LiveCommentaryService (UC#6)
     CONVERSATION_FOCUS, // "Режим фокуса" → ConversationFocusManager (UC#13)
     FOOD_ANALYSIS,      // "Сколько калорий?" → VisionRouter + FoodAnalysisPrompts (UC#4)

@@ -1,5 +1,6 @@
 package com.vzor.ai.vision
 
+import android.util.Log
 import com.vzor.ai.domain.model.DetectedObject
 import com.vzor.ai.domain.model.SceneData
 import com.vzor.ai.domain.repository.VisionRepository
@@ -13,11 +14,13 @@ class VisionRouter @Inject constructor(
     private val visionRepository: VisionRepository,
     private val onDeviceProcessor: OnDeviceVisionProcessor,
     private val mediaPipeProcessor: MediaPipeVisionProcessor,
-    private val budgetManager: VisionBudgetManager
+    private val budgetManager: VisionBudgetManager,
+    private val clipEmbeddingService: ClipEmbeddingService? = null
 ) {
-
     companion object {
-        private const val CACHE_KEY_SCENE = "scene_latest"
+        private const val TAG = "VisionRouter"
+        private const val CACHE_KEY_SCENE = "scene_cloud"
+        private const val CACHE_KEY_SCENE_PREPROCESSED = "scene_preprocessed"
         private const val DEFAULT_SCENE_TTL = 10_000L
 
         private val OBJECT_PATTERN = Regex("""(?i)object:\s*(.+?)\s*\((\d*\.?\d+)\)""")
@@ -106,13 +109,27 @@ class VisionRouter @Inject constructor(
                     stability = 0.9f,
                     ttlMs = PerceptionCache.DefaultTtl.TEXT_MS
                 )
-                perceptionCache.put(CACHE_KEY_SCENE, sceneData, PerceptionCache.DefaultTtl.TEXT_MS)
+                perceptionCache.put(CACHE_KEY_SCENE_PREPROCESSED, sceneData, PerceptionCache.DefaultTtl.TEXT_MS)
                 return Result.success(sceneData)
             }
         }
 
-        // 3. Cloud VLM (обогащённый MediaPipe результатами)
-        return analyzeScene(imageBytes, prompt, forceRefresh).map { sceneData ->
+        // 3. CLIP pre-classification (если Edge AI доступен)
+        val sceneCategory = try {
+            clipEmbeddingService?.preClassifyScene(imageBytes)
+        } catch (e: Exception) {
+            Log.d(TAG, "CLIP pre-classification skipped: ${e.message}")
+            null
+        }
+
+        // 4. Cloud VLM (обогащённый MediaPipe + CLIP результатами)
+        val enrichedPrompt = if (sceneCategory != null) {
+            "$prompt\n[Предварительная классификация сцены: $sceneCategory]"
+        } else {
+            prompt
+        }
+
+        return analyzeScene(imageBytes, enrichedPrompt, forceRefresh).map { sceneData ->
             sceneData.copy(
                 faceCount = faces.size,
                 gestures = gestures,

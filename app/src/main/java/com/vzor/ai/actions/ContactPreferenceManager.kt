@@ -27,7 +27,12 @@ class ContactPreferenceManager @Inject constructor(
 ) {
     companion object {
         private const val PREF_PREFIX = "contact_pref:"
+        private const val CACHE_TTL_MS = 30_000L // 30 секунд
     }
+
+    // Кеш контактов с TTL
+    private var cachedContacts: Map<String, List<ContactMatch>> = emptyMap()
+    private var cacheTimestamp: Long = 0L
 
     /**
      * Описание найденного контакта.
@@ -137,7 +142,27 @@ class ContactPreferenceManager @Inject constructor(
         }
     }
 
+    @Synchronized
     private fun findContactsByName(name: String): List<ContactMatch> {
+        // Проверяем кеш
+        val now = System.currentTimeMillis()
+        if (now - cacheTimestamp < CACHE_TTL_MS) {
+            val cached = cachedContacts[name.lowercase()]
+            if (cached != null) return cached
+        } else {
+            // TTL expired — очищаем весь кеш
+            cachedContacts = emptyMap()
+        }
+
+        val result = queryContactsFromProvider(name)
+
+        // Сохраняем в кеш
+        cachedContacts = cachedContacts + (name.lowercase() to result)
+        if (cachedContacts.size == 1) cacheTimestamp = now
+        return result
+    }
+
+    private fun queryContactsFromProvider(name: String): List<ContactMatch> {
         val matches = mutableListOf<ContactMatch>()
         var cursor: Cursor? = null
 

@@ -2,8 +2,8 @@ package com.vzor.ai.orchestrator
 
 import android.util.Log
 import com.vzor.ai.actions.ActionExecutor
+import com.vzor.ai.actions.VideoCaptureAction
 import com.vzor.ai.domain.model.IntentType
-import com.vzor.ai.domain.model.MemoryFact
 import com.vzor.ai.domain.model.VzorIntent
 import com.vzor.ai.domain.repository.MemoryRepository
 import com.vzor.ai.domain.repository.VisionRepository
@@ -12,8 +12,10 @@ import com.vzor.ai.translation.TranslationManager
 import com.vzor.ai.translation.TranslationMode
 import com.vzor.ai.vision.AccessibilityHelper
 import com.vzor.ai.vision.FoodAnalysisPrompts
+import com.vzor.ai.vision.ClipEmbeddingService
 import com.vzor.ai.vision.PlaceIdentificationHelper
 import com.vzor.ai.vision.ShoppingComparisonHelper
+import com.vzor.ai.data.remote.AcrCloudService
 import com.vzor.ai.data.remote.TavilySearchService
 import com.vzor.ai.data.local.PreferencesManager
 import kotlinx.coroutines.flow.first
@@ -23,7 +25,7 @@ import javax.inject.Singleton
 /**
  * Tool Registry — маппинг LLM tool calls к сервисам приложения.
  *
- * Поддерживаемые инструменты (18):
+ * Поддерживаемые инструменты (20):
  * 1. vision.getScene    — описание сцены с камеры
  * 2. vision.describe    — описание изображения
  * 3. action.capture     — фото с камеры очков
@@ -35,13 +37,15 @@ import javax.inject.Singleton
  * 9. memory.get         — получить из памяти
  * 10. memory.set        — сохранить в память
  * 11. translate         — перевод текста
- * 12. audio.fingerprint — распознавание музыки (заглушка, нужен ACRCloud)
+ * 12. audio.fingerprint — распознавание музыки (ACRCloud)
  * 13. vision.food          — анализ еды: калории, БЖУ, ингредиенты (UC#4)
  * 14. vision.shopping      — шопинг: анализ товара, сравнение, ценники (UC#5)
  * 15. vision.accessibility — доступность: описание окружения, навигация (UC#8)
  * 16. vision.place         — идентификация мест и достопримечательностей (UC#2)
  * 17. action.reminder      — установка напоминания с текстом и задержкой
  * 18. action.timer         — установка таймера обратного отсчёта
+ * 19. action.video         — запись видео с камеры очков (UC#11)
+ * 20. vision.classify      — zero-shot классификация сцены (CLIP)
  */
 @Singleton
 class ToolRegistry @Inject constructor(
@@ -51,7 +55,10 @@ class ToolRegistry @Inject constructor(
     private val translationManager: TranslationManager,
     private val tavilySearchService: TavilySearchService,
     private val prefs: PreferencesManager,
-    private val actionExecutor: ActionExecutor
+    private val actionExecutor: ActionExecutor,
+    private val acrCloudService: AcrCloudService,
+    private val videoCaptureAction: VideoCaptureAction,
+    private val clipEmbeddingService: ClipEmbeddingService? = null
 ) {
     companion object {
         private const val TAG = "ToolRegistry"
@@ -179,6 +186,21 @@ class ToolRegistry @Inject constructor(
             parameters = mapOf(
                 "minutes" to "int: Длительность таймера в минутах"
             )
+        ),
+        ToolDescription(
+            name = "action.video",
+            description = "Записать видео с камеры умных очков",
+            parameters = mapOf(
+                "action" to "string: Действие (start, stop) — по умолчанию start",
+                "duration" to "int: Длительность записи в секундах (по умолчанию 15, макс 60)"
+            )
+        ),
+        ToolDescription(
+            name = "vision.classify",
+            description = "Быстрая zero-shot классификация сцены (еда, товар, текст, здание и т.д.)",
+            parameters = mapOf(
+                "labels" to "string: Категории через запятую — необязательно"
+            )
         )
     )
 
@@ -208,10 +230,9 @@ class ToolRegistry @Inject constructor(
                 "vision.place" -> executeVisionPlace(args)
                 "action.reminder" -> executeActionReminder(args)
                 "action.timer" -> executeActionTimer(args)
-                "audio.fingerprint" -> ToolResult(
-                    success = false,
-                    output = "audio.fingerprint пока не реализован (нужен ACRCloud API ключ)"
-                )
+                "audio.fingerprint" -> executeAudioFingerprint()
+                "action.video" -> executeVideoAction(args)
+                "vision.classify" -> executeVisionClassify(args)
                 else -> ToolResult(success = false, output = "Неизвестный инструмент: $name")
             }
         } catch (e: Exception) {
@@ -459,6 +480,55 @@ class ToolRegistry @Inject constructor(
         val result = actionExecutor.execute(intent)
         return ToolResult(result.success, result.message)
     }
+
+    private suspend fun executeAudioFingerprint(): ToolResult {
+        if (!acrCloudService.isConfigured()) {
+            return ToolResult(false, "ACRCloud не настроен. Укажите Access Key, Secret и Host в настройках.")
+        }
+
+        // Записываем аудио через GlassesManager (8 сек)
+        val audioData = glassesManager.recordAudioChunk(AcrCloudService.RECOMMENDED_AUDIO_DURATION_MS)
+            ?: return ToolResult(false, "Не удалось записать аудио для распознавания")
+
+        val result = acrCloudService.identify(audioData)
+            ?: return ToolResult(false, "Не удалось распознать музыку. Попробуйте ещё раз в тихом месте.")
+
+        return ToolResult(true, result.formatForUser())
+    }
+
+    private suspend fun executeVideoAction(args: Map<String, String>): ToolResult {
+        val action = args["action"]?.lowercase() ?: "start"
+        return if (action == "stop") {
+            val result = videoCaptureAction.stopRecording()
+            ToolResult(result.success, result.message)
+        } else {
+            val duration = args["duration"]?.toIntOrNull() ?: 15
+            val result = videoCaptureAction.startRecording(duration)
+            ToolResult(result.success, result.message)
+        }
+    }
+
+    private suspend fun executeVisionClassify(args: Map<String, String>): ToolResult {
+        val clip = clipEmbeddingService
+            ?: return ToolResult(false, "CLIP не доступен (Edge AI сервер отключён)")
+
+        val photo = glassesManager.capturePhoto()
+            ?: return ToolResult(false, "Не удалось получить кадр с камеры")
+
+        val customLabels = args["labels"]?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }
+        val labels = if (!customLabels.isNullOrEmpty()) customLabels else clip.defaultSceneLabels
+
+        val result = clip.classify(photo, labels)
+            ?: return ToolResult(false, "Не удалось классифицировать сцену")
+
+        val output = buildString {
+            appendLine("Классификация сцены:")
+            result.scores.take(3).forEach { score ->
+                appendLine("  ${score.label}: ${(score.score * 100).toInt()}%")
+            }
+        }
+        return ToolResult(true, output.trim())
+    }
 }
 
 /**
@@ -481,8 +551,13 @@ data class ToolResult(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ToolResult) return false
-        return success == other.success && output == other.output
+        return success == other.success && output == other.output &&
+            imageData.contentEquals(other.imageData)
     }
 
-    override fun hashCode(): Int = 31 * success.hashCode() + output.hashCode()
+    override fun hashCode(): Int {
+        var result = 31 * success.hashCode() + output.hashCode()
+        result = 31 * result + (imageData?.contentHashCode() ?: 0)
+        return result
+    }
 }

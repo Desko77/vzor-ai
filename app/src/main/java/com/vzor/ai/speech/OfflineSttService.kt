@@ -1,15 +1,24 @@
 package com.vzor.ai.speech
 
 import android.content.Context
+import android.content.Intent
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
@@ -48,12 +57,34 @@ class OfflineSttService @Inject constructor(
     private val _isListening = AtomicBoolean(false)
     override val isListening: Boolean get() = _isListening.get()
 
+    init {
+        // Очищаем WAV файлы, оставшиеся после crash
+        cleanupStaleWavFiles()
+    }
+
+    private fun cleanupStaleWavFiles() {
+        try {
+            context.cacheDir.listFiles()?.filter {
+                it.name.startsWith("offline_stt_") && it.name.endsWith(".wav")
+            }?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cleanup stale WAV files", e)
+        }
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile
+    private var recognizer: SpeechRecognizer? = null
+
     /**
-     * Записывает аудио с микрофона и возвращает результат распознавания.
+     * Распознавание через Android SpeechRecognizer с EXTRA_PREFER_OFFLINE.
      *
-     * Текущая реализация использует Android SpeechRecognizer API с `EXTRA_PREFER_OFFLINE`.
-     * Для полной офлайн-поддержки без зависимости от Google:
-     * TODO: интегрировать Whisper через ONNX Runtime или MLC LLM.
+     * На Android 12+ использует on-device recognizer (если доступен).
+     * На более старых версиях использует стандартный SpeechRecognizer
+     * с флагом EXTRA_PREFER_OFFLINE=true.
+     *
+     * Fallback: запись WAV + ожидание on-device модели.
      */
     override fun startListening(): Flow<SttResult> = callbackFlow {
         if (!_isListening.compareAndSet(false, true)) {
@@ -61,34 +92,166 @@ class OfflineSttService @Inject constructor(
             return@callbackFlow
         }
 
-        Log.d(TAG, "Starting offline STT recording")
+        Log.d(TAG, "Starting offline STT")
 
-        try {
-            val result = withContext(Dispatchers.IO) {
-                recordAndTranscribe()
-            }
+        val useOnDevice = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
-            if (result != null) {
-                trySend(SttResult(
-                    text = result,
-                    isFinal = true,
-                    confidence = 0.7f, // Offline обычно менее точный
-                    language = "ru"
-                ))
+        if (useOnDevice || SpeechRecognizer.isRecognitionAvailable(context)) {
+            // Используем Android SpeechRecognizer
+            try {
+                val sr = if (useOnDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                } else {
+                    SpeechRecognizer.createSpeechRecognizer(context)
+                }
+                recognizer = sr
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                    if (!useOnDevice) {
+                        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                    }
+                }
+
+                sr.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        Log.d(TAG, "Ready for speech")
+                    }
+
+                    override fun onBeginningOfSpeech() {
+                        Log.d(TAG, "Speech started")
+                    }
+
+                    override fun onRmsChanged(rmsdB: Float) {}
+
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+
+                    override fun onEndOfSpeech() {
+                        Log.d(TAG, "Speech ended")
+                    }
+
+                    override fun onError(error: Int) {
+                        val errorMsg = when (error) {
+                            SpeechRecognizer.ERROR_AUDIO -> "Audio error"
+                            SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                            SpeechRecognizer.ERROR_NO_MATCH -> "No match"
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                            else -> "Error $error"
+                        }
+                        Log.w(TAG, "SpeechRecognizer error: $errorMsg")
+
+                        // Fallback к записи WAV
+                        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                            _isListening.set(false)
+                            close()
+                        } else {
+                            // Для других ошибок пробуем WAV fallback
+                            launch(Dispatchers.IO) {
+                                val result = recordAndTranscribe()
+                                if (result != null) {
+                                    trySend(SttResult(text = result, isFinal = true, confidence = 0.6f))
+                                }
+                                _isListening.set(false)
+                                close()
+                            }
+                        }
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val confidences = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+
+                        if (!matches.isNullOrEmpty()) {
+                            val text = matches[0]
+                            val confidence = confidences?.firstOrNull() ?: 0.8f
+                            Log.d(TAG, "Final result: $text (confidence=$confidence)")
+                            trySend(SttResult(
+                                text = text,
+                                isFinal = true,
+                                confidence = confidence,
+                                language = "ru"
+                            ))
+                        }
+                        _isListening.set(false)
+                        close()
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        if (!matches.isNullOrEmpty() && matches[0].isNotBlank()) {
+                            trySend(SttResult(
+                                text = matches[0],
+                                isFinal = false,
+                                confidence = 0.5f,
+                                language = "ru"
+                            ))
+                        }
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+
+                sr.startListening(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "SpeechRecognizer creation failed, falling back to WAV", e)
+                // Fallback к записи WAV
+                val result = withContext(Dispatchers.IO) { recordAndTranscribe() }
+                if (result != null) {
+                    trySend(SttResult(text = result, isFinal = true, confidence = 0.6f))
+                }
+                _isListening.set(false)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Offline STT failed", e)
-        } finally {
-            _isListening.set(false)
+        } else {
+            // SpeechRecognizer недоступен — записываем WAV
+            Log.w(TAG, "SpeechRecognizer not available, recording WAV")
+            try {
+                val result = withContext(Dispatchers.IO) { recordAndTranscribe() }
+                if (result != null) {
+                    trySend(SttResult(text = result, isFinal = true, confidence = 0.6f))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Offline STT failed", e)
+            } finally {
+                _isListening.set(false)
+            }
         }
 
         awaitClose {
             _isListening.set(false)
+            destroyRecognizerOnMainThread()
         }
-    }
+    }.flowOn(Dispatchers.Main)
 
     override fun stopListening() {
         _isListening.set(false)
+        destroyRecognizerOnMainThread()
+    }
+
+    /**
+     * Уничтожает SpeechRecognizer на Main thread (обязательное требование API).
+     * Атомарно обнуляет ссылку для предотвращения double-destroy.
+     */
+    private fun destroyRecognizerOnMainThread() {
+        val sr = recognizer ?: return
+        recognizer = null
+        val action = Runnable {
+            try {
+                sr.stopListening()
+                sr.destroy()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error destroying SpeechRecognizer", e)
+            }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action.run()
+        } else {
+            mainHandler.post(action)
+        }
     }
 
     /**
@@ -167,8 +330,8 @@ class OfflineSttService @Inject constructor(
             writeWavFile(wavFile, audioData, totalBytes)
             Log.d(TAG, "Recorded ${totalBytes} bytes to ${wavFile.absolutePath}")
 
-            // Транскрибируем через Android SpeechRecognizer
-            return transcribeWithAndroidRecognizer(wavFile)
+            // WAV записан — SpeechRecognizer fallback (ONNX Whisper в будущем)
+            return transcribeFromWav(wavFile)
 
         } finally {
             audioRecord.release()
@@ -177,16 +340,11 @@ class OfflineSttService @Inject constructor(
     }
 
     /**
-     * Транскрибирует WAV файл через Android SpeechRecognizer API.
-     *
-     * Текущая реализация — заглушка.
-     * TODO: Интегрировать android.speech.SpeechRecognizer с EXTRA_PREFER_OFFLINE=true
-     * или ONNX Runtime Whisper для полной офлайн-транскрипции.
+     * Fallback транскрипция: WAV файл сохранён, но SpeechRecognizer недоступен.
+     * Логирует путь к файлу для отладки. В будущем — ONNX Runtime Whisper.
      */
-    private fun transcribeWithAndroidRecognizer(wavFile: File): String? {
-        // Placeholder: Android SpeechRecognizer требует Activity context
-        // и callback-based API. Полная интеграция в следующей итерации.
-        Log.w(TAG, "Offline transcription not yet available — WAV saved: ${wavFile.length()} bytes")
+    private fun transcribeFromWav(wavFile: File): String? {
+        Log.w(TAG, "WAV fallback: SpeechRecognizer unavailable, file saved: ${wavFile.length()} bytes")
         return null
     }
 
