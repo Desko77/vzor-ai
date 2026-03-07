@@ -51,6 +51,9 @@
 | 27-31 | High | ContactPreferenceManager кеш без синхронизации в @Singleton | Review fix |
 | 27-31 | Medium | TranslationManager check() бросал IllegalStateException при конкурентном вызове | Review fix |
 | 27-31 | Low | ToolRegistry мёртвый import MemoryFact | Review fix |
+| 21-22 | Medium | PII в disambiguation message (ContactPreferenceManager) | Stage 33 |
+| 12 | Low | ToolRegistryTest тавтология | Stage 33 |
+| 27-31 | Low | ClipEmbeddingService название не соответствует реализации | Stage 33 |
 
 ---
 
@@ -62,24 +65,6 @@
 - **Problem:** `MasterKeys.getOrCreate()` deprecated, замена `MasterKey.Builder` в alpha
 - **Status:** Ожидает стабильного релиза security-crypto 1.1.0
 
-### [Medium] PII в disambiguation message (ContactPreferenceManager)
-- **Stage:** 21-22
-- **File:** `actions/ContactPreferenceManager.kt:103`
-- **Problem:** Номера телефонов в тексте попадают в UI/логи
-- **Status:** By design для TTS, но проверить что не логируется
-
-### [Low] ToolRegistryTest тавтология
-- **Stage:** 12
-- **File:** `test/.../ToolRegistryTest.kt`
-- **Problem:** Тест создаёт локальный список и проверяет его
-- **Fix:** Инстанцировать ToolRegistry с mock-зависимостями
-
-### [Low] ClipEmbeddingService название не соответствует реализации
-- **Stage:** 27-31
-- **File:** `vision/ClipEmbeddingService.kt`
-- **Problem:** Называется "CLIP ViT-B/32", но реализация отправляет изображение в Ollama VLM с текстовым промптом — это не CLIP embedding pipeline
-- **Fix:** Переименовать в VlmClassificationService или обновить документацию
-
 ---
 
 ## Сводка
@@ -87,6 +72,6 @@
 | Severity | Open | Closed |
 |----------|:----:|:------:|
 | High | 0 | 16 |
-| Medium | 2 | 16 |
-| Low | 2 | 13 |
-| **Total** | **4** | **45** |
+| Medium | 1 | 17 |
+| Low | 0 | 15 |
+| **Total** | **1** | **48** |

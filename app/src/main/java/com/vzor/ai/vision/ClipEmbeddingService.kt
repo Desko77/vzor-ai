@@ -10,10 +10,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Zero-shot visual classification через CLIP ViT-B/32 на Edge AI сервере.
+ * Zero-shot visual classification через VLM на Edge AI сервере (Ollama).
  *
- * CLIP (Contrastive Language-Image Pre-training) позволяет классифицировать
- * изображения по произвольным текстовым меткам без дообучения.
+ * Реализация: отправляет изображение + текстовые метки в VLM (clip:vit-b32)
+ * через Ollama API и парсит текстовый ответ с оценками. Это prompt-based
+ * классификация, а не нативный CLIP embedding pipeline.
  *
  * Использование:
  * - Быстрая предварительная классификация сцены перед cloud VLM

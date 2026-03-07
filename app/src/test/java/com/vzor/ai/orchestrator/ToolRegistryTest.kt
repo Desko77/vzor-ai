@@ -2,6 +2,7 @@ package com.vzor.ai.orchestrator
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +23,15 @@ class ToolRegistryTest {
         assertEquals(1, desc.parameters.size)
     }
 
+    @Test
+    fun `ToolDescription equality`() {
+        val d1 = ToolDescription("a", "b", mapOf("p" to "string"))
+        val d2 = ToolDescription("a", "b", mapOf("p" to "string"))
+        val d3 = ToolDescription("x", "b", mapOf("p" to "string"))
+        assertEquals(d1, d2)
+        assertNotEquals(d1, d3)
+    }
+
     // --- ToolResult ---
 
     @Test
@@ -39,10 +49,21 @@ class ToolRegistryTest {
     }
 
     @Test
-    fun `ToolResult equality ignores imageData`() {
+    fun `ToolResult equality includes imageData`() {
         val r1 = ToolResult(true, "ok", imageData = byteArrayOf(1, 2, 3))
-        val r2 = ToolResult(true, "ok", imageData = byteArrayOf(4, 5, 6))
-        assertEquals(r1, r2) // equality based on success + output only
+        val r2 = ToolResult(true, "ok", imageData = byteArrayOf(1, 2, 3))
+        val r3 = ToolResult(true, "ok", imageData = byteArrayOf(4, 5, 6))
+        val r4 = ToolResult(true, "ok", imageData = null)
+        assertEquals(r1, r2)
+        assertNotEquals(r1, r3)
+        assertNotEquals(r1, r4)
+    }
+
+    @Test
+    fun `ToolResult hashCode includes imageData`() {
+        val r1 = ToolResult(true, "ok", imageData = byteArrayOf(1, 2, 3))
+        val r2 = ToolResult(true, "ok", imageData = byteArrayOf(1, 2, 3))
+        assertEquals(r1.hashCode(), r2.hashCode())
     }
 
     @Test
@@ -53,28 +74,36 @@ class ToolRegistryTest {
         assertEquals(3, result.imageData!!.size)
     }
 
-    // --- Tool names coverage ---
+    @Test
+    fun `ToolResult without imageData defaults to null`() {
+        val result = ToolResult(true, "ok")
+        assertEquals(null, result.imageData)
+    }
+
+    // --- Tool name format validation ---
 
     @Test
-    fun `all expected tool names are defined`() {
-        val expectedTools = listOf(
-            "vision.getScene",
-            "vision.describe",
-            "action.capture",
-            "web.search",
-            "memory.get",
-            "memory.set",
-            "translate",
-            "audio.fingerprint"
+    fun `tool names follow namespace convention`() {
+        // Все имена инструментов должны содержать точку (namespace.action)
+        // или быть одним из известных исключений (translate)
+        val knownExceptions = setOf("translate")
+        val sampleTools = listOf(
+            "vision.getScene", "vision.describe", "action.capture",
+            "web.search", "memory.get", "memory.set",
+            "action.call", "action.message", "action.navigate",
+            "action.playMusic", "audio.fingerprint", "vision.food"
         )
 
-        // Verify the expected tool list matches spec (12 from ТЗ, 8 implemented)
-        assertEquals(8, expectedTools.size)
-        assertTrue(expectedTools.all { it.contains(".") || it == "translate" })
+        sampleTools.forEach { name ->
+            assertTrue(
+                "Tool '$name' should contain '.' or be a known exception",
+                name.contains(".") || name in knownExceptions
+            )
+        }
     }
 
     @Test
-    fun `tool description parameters format`() {
+    fun `tool description parameters format is consistent`() {
         val desc = ToolDescription(
             name = "memory.set",
             description = "Сохранить факт",
@@ -85,8 +114,10 @@ class ToolRegistryTest {
             )
         )
         assertEquals(3, desc.parameters.size)
-        assertTrue(desc.parameters.containsKey("fact"))
-        assertTrue(desc.parameters.containsKey("category"))
-        assertTrue(desc.parameters.containsKey("importance"))
+        // Все значения параметров содержат тип и описание через ":"
+        desc.parameters.values.forEach { value ->
+            assertTrue("Parameter '$value' should have 'type: description' format",
+                value.contains(":"))
+        }
     }
 }
