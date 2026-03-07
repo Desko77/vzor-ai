@@ -47,6 +47,10 @@
 | 23-26 | Low | OfflineSttService WAV файлы не очищаются при crash | Stage 27 |
 | 23-26 | Low | ToolResult hashCode не учитывает imageData | Stage 27 |
 | 28 | Low | Контакты загружаются заново при каждом resolveContact | Stage 28 (TTL кеш) |
+| 27-31 | High | VideoCaptureAction.startRecording блокировал voice pipeline до 60с | Review fix |
+| 27-31 | High | ContactPreferenceManager кеш без синхронизации в @Singleton | Review fix |
+| 27-31 | Medium | TranslationManager check() бросал IllegalStateException при конкурентном вызове | Review fix |
+| 27-31 | Low | ToolRegistry мёртвый import MemoryFact | Review fix |
 
 ---
 
@@ -70,13 +74,19 @@
 - **Problem:** Тест создаёт локальный список и проверяет его
 - **Fix:** Инстанцировать ToolRegistry с mock-зависимостями
 
+### [Low] ClipEmbeddingService название не соответствует реализации
+- **Stage:** 27-31
+- **File:** `vision/ClipEmbeddingService.kt`
+- **Problem:** Называется "CLIP ViT-B/32", но реализация отправляет изображение в Ollama VLM с текстовым промптом — это не CLIP embedding pipeline
+- **Fix:** Переименовать в VlmClassificationService или обновить документацию
+
 ---
 
 ## Сводка
 
 | Severity | Open | Closed |
 |----------|:----:|:------:|
-| High | 0 | 14 |
-| Medium | 2 | 15 |
-| Low | 1 | 12 |
-| **Total** | **3** | **41** |
+| High | 0 | 16 |
+| Medium | 2 | 16 |
+| Low | 2 | 13 |
+| **Total** | **4** | **45** |
