@@ -35,6 +35,7 @@
 | 20 | Low | OkHttpClient в YandexSttService не инжектируется | Stage 23 |
 | 20 | Low | Тройное декодирование Bitmap в MediaPipeVisionProcessor | Stage 23 |
 | 21-22 | Low | IntentClassifier Regex создаётся при каждом вызове | Stage 23 |
+| 15-17 | Low | ClaudeStreamingClient неидиоматичный flow builder | Stage 26 |
 
 ---
 
@@ -58,11 +59,6 @@
 - **Problem:** Тест создаёт локальный список и проверяет его
 - **Fix:** Инстанцировать ToolRegistry с mock-зависимостями
 
-### [Low] ClaudeStreamingClient неидиоматичный flow builder
-- **Stage:** 15-17
-- **File:** `data/remote/ClaudeStreamingClient.kt:39-47`
-- **Fix:** Заменить на `filterIsInstance<StreamChunk.Text>().map { it.content }`
-
 ### [Low] Контакты загружаются заново при каждом resolveContact
 - **Stage:** 21-22
 - **File:** `actions/ContactPreferenceManager.kt:145`
@@ -76,5 +72,5 @@
 |----------|:----:|:------:|
 | High | 0 | 10 |
 | Medium | 2 | 8 |
-| Low | 3 | 5 |
-| **Total** | **5** | **23** |
+| Low | 2 | 6 |
+| **Total** | **4** | **24** |
