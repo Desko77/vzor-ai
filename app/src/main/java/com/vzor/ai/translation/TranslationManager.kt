@@ -43,7 +43,8 @@ class TranslationManager @Inject constructor(
     private val yandexTranslate: YandexTranslateService,
     private val prefs: PreferencesManager,
     private val speakerDiarizer: SpeakerDiarizer,
-    private val acousticEchoCanceller: AcousticEchoCanceller
+    private val acousticEchoCanceller: AcousticEchoCanceller,
+    private val subtitleOverlay: SubtitleOverlayService? = null
 ) {
 
     companion object {
@@ -104,6 +105,11 @@ class TranslationManager @Inject constructor(
         // Сбрасываем diarization для новой сессии
         speakerDiarizer.reset()
 
+        // Показываем субтитры для режимов A и C
+        if (mode == TranslationMode.LISTEN || mode == TranslationMode.BIDIRECTIONAL) {
+            subtitleOverlay?.show()
+        }
+
         listeningJob = scope.launch {
             try {
                 startListeningPipeline(mode)
@@ -126,6 +132,7 @@ class TranslationManager @Inject constructor(
         sttService.stopListening()
         ttsManager.cancelAll()
         acousticEchoCanceller.release()
+        subtitleOverlay?.hide()
 
         translationScope?.cancel()
         translationScope = null
@@ -169,6 +176,9 @@ class TranslationManager @Inject constructor(
 
                 currentSession?.translations?.add(result)
                 _lastTranslation.value = result
+
+                // Обновляем субтитры на экране
+                subtitleOverlay?.updateFromResult(result)
 
                 Log.d(TAG, "Translation: '$text' ($srcLang) -> '$translated' ($tgtLang) [${latency}ms]")
 

@@ -17,7 +17,8 @@ data class ActionResult(
 class ActionExecutor @Inject constructor(
     @ApplicationContext private val context: Context,
     private val contactPreferenceManager: ContactPreferenceManager,
-    private val photoCaptureAction: PhotoCaptureAction
+    private val photoCaptureAction: PhotoCaptureAction,
+    private val videoCaptureAction: VideoCaptureAction
 ) {
     private val callAction by lazy { CallAction(context) }
     private val messageAction by lazy { MessageAction(context) }
@@ -33,6 +34,7 @@ class ActionExecutor @Inject constructor(
             IntentType.NAVIGATE -> executeNavigation(intent)
             IntentType.SET_REMINDER -> executeReminder(intent)
             IntentType.CAPTURE_PHOTO -> photoCaptureAction.capture()
+            IntentType.CAPTURE_VIDEO -> executeVideoCapture(intent)
             IntentType.WEB_SEARCH -> executeWebSearch(intent)
             else -> ActionResult(false, "Действие не поддерживается")
         }
@@ -128,6 +130,15 @@ class ActionExecutor @Inject constructor(
         } else {
             reminderAction.setReminder(text, delayMinutes)
         }
+    }
+
+    private suspend fun executeVideoCapture(intent: VzorIntent): ActionResult {
+        val action = intent.slots["action"]?.lowercase()
+        if (action == "stop" || action == "стоп") {
+            return videoCaptureAction.stopRecording()
+        }
+        val duration = intent.slots["duration"]?.toIntOrNull() ?: 15
+        return videoCaptureAction.startRecording(duration)
     }
 
     private fun executeWebSearch(intent: VzorIntent): ActionResult {
