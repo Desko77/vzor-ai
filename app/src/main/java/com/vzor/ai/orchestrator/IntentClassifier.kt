@@ -220,6 +220,37 @@ class IntentClassifier @Inject constructor() {
             ),
             baseConfidence = 0.85f,
             requiresVision = true
+        ),
+        // Accessibility (UC#8: Be My Eyes — помощь слабовидящим)
+        IntentRule(
+            intentType = IntentType.ACCESSIBILITY,
+            keywords = listOf(
+                WeightedKeyword("что вокруг меня", 1.0f),
+                WeightedKeyword("опиши окружение", 1.0f),
+                WeightedKeyword("помоги пройти", 1.0f),
+                WeightedKeyword("что впереди", 0.9f),
+                WeightedKeyword("есть ли препятстви", 0.9f),
+                WeightedKeyword("прочитай вслух", 1.0f),
+                WeightedKeyword("что я держу", 0.9f),
+                WeightedKeyword("безопасно ли", 0.8f)
+            ),
+            baseConfidence = 0.9f,
+            requiresVision = true
+        ),
+        // Place Identification (UC#2: идентификация мест)
+        IntentRule(
+            intentType = IntentType.PLACE_IDENTIFY,
+            keywords = listOf(
+                WeightedKeyword("что за здание", 1.0f),
+                WeightedKeyword("что за место", 1.0f),
+                WeightedKeyword("где я нахожусь", 1.0f),
+                WeightedKeyword("достопримечательност", 0.9f),
+                WeightedKeyword("что за магазин", 0.9f),
+                WeightedKeyword("что за ресторан", 0.9f),
+                WeightedKeyword("какое здание", 0.9f)
+            ),
+            baseConfidence = 0.85f,
+            requiresVision = true
         )
     )
 

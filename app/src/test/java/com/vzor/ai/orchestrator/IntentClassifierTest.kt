@@ -423,4 +423,58 @@ class IntentClassifierTest {
         val result = classifier.classify("Стоит ли покупать этот телефон?")
         assertEquals(IntentType.SHOPPING_ASSIST, result.type)
     }
+
+    // --- UC#8: Accessibility ---
+
+    @Test
+    fun `classify accessibility - что вокруг меня`() {
+        val result = classifier.classify("Что вокруг меня?")
+        assertEquals(IntentType.ACCESSIBILITY, result.type)
+        assertTrue(result.requiresVision)
+    }
+
+    @Test
+    fun `classify accessibility - прочитай вслух`() {
+        val result = classifier.classify("Прочитай вслух")
+        assertEquals(IntentType.ACCESSIBILITY, result.type)
+    }
+
+    @Test
+    fun `classify accessibility - помоги пройти`() {
+        val result = classifier.classify("Помоги пройти через дорогу")
+        assertEquals(IntentType.ACCESSIBILITY, result.type)
+    }
+
+    @Test
+    fun `classify accessibility - что я держу`() {
+        val result = classifier.classify("Что я держу в руке?")
+        assertEquals(IntentType.ACCESSIBILITY, result.type)
+    }
+
+    // --- UC#2: Place Identification ---
+
+    @Test
+    fun `classify place - что за здание`() {
+        val result = classifier.classify("Что за здание передо мной?")
+        assertEquals(IntentType.PLACE_IDENTIFY, result.type)
+        assertTrue(result.requiresVision)
+    }
+
+    @Test
+    fun `classify place - где я нахожусь`() {
+        val result = classifier.classify("Где я нахожусь?")
+        assertEquals(IntentType.PLACE_IDENTIFY, result.type)
+    }
+
+    @Test
+    fun `classify place - что за место`() {
+        val result = classifier.classify("Что за место?")
+        assertEquals(IntentType.PLACE_IDENTIFY, result.type)
+    }
+
+    @Test
+    fun `classify place - что за ресторан`() {
+        val result = classifier.classify("Что за ресторан напротив?")
+        assertEquals(IntentType.PLACE_IDENTIFY, result.type)
+    }
 }

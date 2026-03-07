@@ -25,5 +25,7 @@ enum class IntentType {
     CONVERSATION_FOCUS, // "Режим фокуса" → ConversationFocusManager (UC#13)
     FOOD_ANALYSIS,      // "Сколько калорий?" → VisionRouter + FoodAnalysisPrompts (UC#4)
     SHOPPING_ASSIST,    // "Сколько стоит?" → VisionRouter + ShoppingComparisonHelper (UC#5)
+    ACCESSIBILITY,      // "Что вокруг меня?" → AccessibilityHelper (UC#8)
+    PLACE_IDENTIFY,     // "Что за здание?" → PlaceIdentificationHelper (UC#2)
     UNKNOWN
 }
