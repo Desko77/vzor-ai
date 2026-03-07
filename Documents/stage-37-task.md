@@ -1,30 +1,84 @@
-# Stage 37: Picovoice Porcupine Wake Word + Актуализация документов
+# Stage 37: Fix compilation errors + Picovoice Wake Word + Актуализация документов
 
-## Контекст
+## Справочные материалы
 
-### КРИТИЧЕСКАЯ ОШИБКА в документации — ИСПРАВИТЬ В ПЕРВУЮ ОЧЕРЕДЬ
-
-Файлы `Documents/remaining_gaps.md` и `Documents/compliance_report_v11.md` содержат **фактическую ошибку**: DAT SDK описан как "stub-реализация" / "stubs".
-
-**Это НЕВЕРНО.** Прочитай `glasses/GlassesManager.kt` — там полная реализация:
-- `Wearables.initialize(context)` (строка 134)
-- `Wearables.startRegistration(activity)` (строка 163)
-- `session.capturePhoto()` → `extractPhotoBytes()` (строки 444-465)
-- `Wearables.startStreamSession()` → I420→NV21→JPEG конвертация (строки 508-536)
-- `Wearables.checkPermissionStatus(DatPermission.CAMERA)` (строка 406)
-- `convertI420toNV21()` — byte-level YUV конвертер (строки 773-792)
-- `extractPhotoBytes()` — PhotoData.Bitmap/HEIC обработка (строки 801-828)
-
-DAT SDK полностью реализован с Stage 8.2-8.5. Единственное ограничение — SDK приватный (select partners), поэтому тестировать можно только с реальными очками + Meta developer access.
-
-### Что РЕАЛЬНО осталось для 95%+
-
-1. **Picovoice Porcupine** — заменить energy-based heuristic в WakeWordService на реальный SDK (главная задача)
-2. **Актуализация документов** — исправить ложную информацию о "stub" DAT SDK
+- **DAT SDK Real API**: `Documents/dat-sdk-real-api.md` — реальный API извлечённый из AAR JARs через `javap`. ОБЯЗАТЕЛЬНО прочитать перед исправлением GlassesManager.kt
+- **DAT SDK Documentation**: https://wearables.developer.meta.com/docs/ai-solutions — официальная документация Meta Wearables SDK
 
 ---
 
-## Задача 1: Picovoice Porcupine Wake Word SDK
+## Задача 1: ИСПРАВИТЬ 12 ошибок компиляции (ПРИОРИТЕТ 1)
+
+### Контекст
+
+Полная компиляция (`./gradlew assembleDebug`) с `minSdk = 29` (уже исправлено) выявила 12 ошибок Kotlin. DAT SDK зависимости скачиваются успешно (mwdat-core:0.4.0, mwdat-camera:0.4.0), но код использует API неправильно.
+
+### ОБЯЗАТЕЛЬНО прочитать перед исправлением
+
+Файл `Documents/dat-sdk-real-api.md` — полный справочник реального API, извлечённый из AAR JARs через `javap`. Там таблица различий между тем что в коде и реальным API.
+
+### Список ошибок
+
+#### GlassesManager.kt
+
+1. **Строка ~730**: `Unresolved reference 'startStreamSession'`
+   - `startStreamSession` — extension function, нужен import: `import com.meta.wearable.dat.camera.startStreamSession`
+
+2. **Строки ~518, ~528**: `Cannot infer a type for this parameter`
+   - Лямбды `session.state` и `session.videoStream` — явно указать тип параметра
+
+3. **RegistrationState**: используется как enum (`RegistrationState.REGISTERED`), а реально sealed class
+   - Заменить на `is RegistrationState.Registered`
+
+4. **PermissionStatus**: используется как enum, а реально sealed interface
+   - Заменить на `is PermissionStatus.Granted`
+
+5. **Wearables.initialize()**: вызывается синхронно, а реально suspend function
+   - Вызывать из coroutine scope, обработать `DatResult`
+
+6. **checkPermissionStatus()**: вызывается синхронно, а реально suspend function
+   - Вызывать из coroutine scope
+
+7. **capturePhoto()**: ожидается `DatResult?`, а возвращает `kotlin.Result<PhotoData>`
+   - Использовать `result.getOrNull()` / `result.onSuccess {}` от kotlin.Result
+
+#### PorcupineWakeWordEngine.kt
+
+8. **Строка ~58**: `Unresolved reference 'setBuiltInKeyword'`
+   - Проверить актуальный API `Porcupine.Builder` для версии в libs.versions.toml
+
+#### VoiceOrchestrator.kt
+
+9. **Строка ~70**: `Type mismatch: WakeWordDetected`
+   - Проверить определение, передать нужные параметры конструктора
+
+#### OfflineSttService.kt
+
+10. **Строка ~171**: `Unresolved reference 'launch'`
+    - Добавить import `kotlinx.coroutines.launch` или использовать scope
+
+#### TranslationManager.kt
+
+11. **Строка ~104**: `Suspend function called from a non-coroutine context`
+    - Обернуть в coroutine scope или сделать вызывающую функцию suspend
+
+#### LiveCommentaryService.kt
+
+12. **Строка ~78**: `Unresolved reference 'value'`
+    - Проверить тип переменной, использовать правильное свойство
+
+### Порядок исправления
+
+1. Прочитать `Documents/dat-sdk-real-api.md` целиком
+2. Исправить GlassesManager.kt (ошибки 1-7) — самый критичный файл
+3. Исправить PorcupineWakeWordEngine.kt (ошибка 8)
+4. Исправить остальные файлы (ошибки 9-12)
+5. Запустить `./gradlew assembleDebug` и убедиться что компиляция проходит
+6. Запустить `./gradlew test` и убедиться что тесты проходят
+
+---
+
+## Задача 2: Picovoice Porcupine Wake Word SDK
 
 ### Текущее состояние
 
@@ -66,7 +120,13 @@ DAT SDK полностью реализован с Stage 8.2-8.5. Единств
 
 ---
 
-## Задача 2: Актуализация документов
+## Задача 3: Актуализация документов
+
+### КРИТИЧЕСКАЯ ОШИБКА в документации
+
+Файлы `Documents/remaining_gaps.md` и `Documents/compliance_report_v11.md` содержат **фактическую ошибку**: DAT SDK описан как "stub-реализация" / "stubs".
+
+**Это НЕВЕРНО.** Прочитай `glasses/GlassesManager.kt` — там полная реализация (Stages 8.2-8.5).
 
 ### remaining_gaps.md — ПЕРЕПИСАТЬ секцию 1.1
 
@@ -91,31 +151,16 @@ DAT SDK полностью реализован с Stage 8.2-8.5. Единств
 
 - Tier 1 Sensor: поднять с 3.5/10 до **7/10** (DAT SDK реализован, Picovoice — единственный gap)
 - Строка "Camera (12MP) | GlassesManager + DAT SDK stubs" → "Camera (12MP) | GlassesManager + DAT SDK (полная реализация)"
-- Строка "Camera ingest | Stub (DAT SDK блокер)" → "Camera ingest | Реализован (DAT SDK)"
 - После реализации Picovoice: Tier 1 → 8.5/10
-- Общий процент: пересчитать с учётом реального Tier 1
-
-### Пересчёт общего процента
-
-| Tier | Вес | Реальный прогресс | Взвешенный |
-|------|:---:|:-----------------:|:----------:|
-| Tier 1 — Sensor | 10% | 70% (DAT реализован, Picovoice нет) | 7.0% |
-| Tier 2 — Orchestration | 35% | 100% | 35.0% |
-| Tier 3 — Edge AI | 15% | 95% | 14.25% |
-| Tier 4 — Cloud | 20% | 100% | 20.0% |
-| Use Cases | 15% | 100% | 15.0% |
-| Translation | 5% | 95% | 4.75% |
-| **Итого** | **100%** | | **96.0%** |
-
-После Picovoice: Tier 1 → 85%, итого **97.5%**
 
 ---
 
-## Порядок выполнения
+## Порядок выполнения (общий)
 
-1. Прочитать `glasses/GlassesManager.kt` и убедиться что DAT SDK реализован (не stub)
-2. Исправить `Documents/remaining_gaps.md` — секция 1.1
-3. Исправить `Documents/compliance_report_v11.md` — оценки Tier 1
-4. Реализовать Picovoice wake word (задача 1)
-5. Обновить compliance report с новыми оценками
-6. Коммит + push
+1. Прочитать `Documents/dat-sdk-real-api.md` — реальный API SDK
+2. **Исправить 12 ошибок компиляции (Задача 1)** — ПРИОРИТЕТ 1
+3. Исправить `Documents/remaining_gaps.md` — секция 1.1
+4. Исправить `Documents/compliance_report_v11.md` — оценки Tier 1
+5. Реализовать Picovoice wake word (задача 2) — если ещё не сделано
+6. Обновить compliance report с новыми оценками
+7. Коммит + push
