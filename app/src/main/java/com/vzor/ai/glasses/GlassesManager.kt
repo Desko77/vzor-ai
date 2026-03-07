@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -558,6 +559,34 @@ class GlassesManager @Inject constructor(
      */
     fun isCameraAvailable(): Boolean {
         return isDatInitialized && _registrationState.value && hasCameraPermission()
+    }
+
+    /**
+     * Записывает PCM аудио чанк указанной длительности.
+     * Используется для audio fingerprinting (ACRCloud).
+     *
+     * @param durationMs Длительность записи в миллисекундах.
+     * @return PCM 16-bit mono 16kHz данные, или null если запись невозможна.
+     */
+    suspend fun recordAudioChunk(durationMs: Long): ByteArray? = withContext(Dispatchers.IO) {
+        val buffer = java.io.ByteArrayOutputStream()
+        val startTime = System.currentTimeMillis()
+        val bytesNeeded = (durationMs * AudioStreamHandler.SAMPLE_RATE * 2 / 1000).toInt()
+
+        try {
+            audioFrames.takeWhile {
+                buffer.size() < bytesNeeded &&
+                    (System.currentTimeMillis() - startTime) < durationMs + 2000
+            }.collect { frame ->
+                buffer.write(frame)
+            }
+
+            val data = buffer.toByteArray()
+            if (data.isEmpty()) null else data
+        } catch (e: Exception) {
+            Log.w(TAG, "Audio chunk recording failed", e)
+            null
+        }
     }
 
     // -----------------------------------------------------------------

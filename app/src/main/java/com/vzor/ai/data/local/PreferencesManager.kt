@@ -68,6 +68,9 @@ class PreferencesManager @Inject constructor(
         private const val ENCRYPTED_YANDEX_KEY = "yandex_api_key"
         private const val ENCRYPTED_GLM_KEY = "glm_api_key"
         private const val ENCRYPTED_TAVILY_KEY = "tavily_api_key"
+        private const val ENCRYPTED_ACRCLOUD_KEY = "acrcloud_access_key"
+        private const val ENCRYPTED_ACRCLOUD_SECRET = "acrcloud_access_secret"
+        private const val ENCRYPTED_ACRCLOUD_HOST = "acrcloud_host"
     }
 
     // --- Настройки (DataStore, не чувствительные) ---
@@ -162,6 +165,21 @@ class PreferencesManager @Inject constructor(
     )
     val tavilyApiKey: StateFlow<String> = _tavilyApiKey.asStateFlow()
 
+    private val _acrCloudAccessKey = MutableStateFlow(
+        encryptedPrefs.getString(ENCRYPTED_ACRCLOUD_KEY, "") ?: ""
+    )
+    val acrCloudAccessKey: StateFlow<String> = _acrCloudAccessKey.asStateFlow()
+
+    private val _acrCloudAccessSecret = MutableStateFlow(
+        encryptedPrefs.getString(ENCRYPTED_ACRCLOUD_SECRET, "") ?: ""
+    )
+    val acrCloudAccessSecret: StateFlow<String> = _acrCloudAccessSecret.asStateFlow()
+
+    private val _acrCloudHost = MutableStateFlow(
+        encryptedPrefs.getString(ENCRYPTED_ACRCLOUD_HOST, "") ?: ""
+    )
+    val acrCloudHost: StateFlow<String> = _acrCloudHost.asStateFlow()
+
     suspend fun setGeminiApiKey(key: String) {
         withContext(Dispatchers.IO) {
             encryptedPrefs.edit().putString(ENCRYPTED_GEMINI_KEY, key).commit()
@@ -202,5 +220,18 @@ class PreferencesManager @Inject constructor(
             encryptedPrefs.edit().putString(ENCRYPTED_TAVILY_KEY, key).commit()
         }
         _tavilyApiKey.value = key
+    }
+
+    suspend fun setAcrCloudCredentials(accessKey: String, accessSecret: String, host: String) {
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit()
+                .putString(ENCRYPTED_ACRCLOUD_KEY, accessKey)
+                .putString(ENCRYPTED_ACRCLOUD_SECRET, accessSecret)
+                .putString(ENCRYPTED_ACRCLOUD_HOST, host)
+                .commit()
+        }
+        _acrCloudAccessKey.value = accessKey
+        _acrCloudAccessSecret.value = accessSecret
+        _acrCloudHost.value = host
     }
 }

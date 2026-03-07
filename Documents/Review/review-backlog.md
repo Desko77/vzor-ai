@@ -46,6 +46,7 @@
 | 23-26 | Medium | TranslationManager CoroutineScope утечка при повторном start | Stage 27 |
 | 23-26 | Low | OfflineSttService WAV файлы не очищаются при crash | Stage 27 |
 | 23-26 | Low | ToolResult hashCode не учитывает imageData | Stage 27 |
+| 28 | Low | Контакты загружаются заново при каждом resolveContact | Stage 28 (TTL кеш) |
 
 ---
 
@@ -69,11 +70,6 @@
 - **Problem:** Тест создаёт локальный список и проверяет его
 - **Fix:** Инстанцировать ToolRegistry с mock-зависимостями
 
-### [Low] Контакты загружаются заново при каждом resolveContact
-- **Stage:** 21-22
-- **File:** `actions/ContactPreferenceManager.kt:145`
-- **Fix:** Кеш с TTL ~30 сек
-
 ---
 
 ## Сводка
@@ -82,5 +78,5 @@
 |----------|:----:|:------:|
 | High | 0 | 14 |
 | Medium | 2 | 15 |
-| Low | 2 | 10 |
-| **Total** | **4** | **39** |
+| Low | 1 | 12 |
+| **Total** | **3** | **41** |

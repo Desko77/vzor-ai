@@ -14,6 +14,7 @@ import com.vzor.ai.vision.AccessibilityHelper
 import com.vzor.ai.vision.FoodAnalysisPrompts
 import com.vzor.ai.vision.PlaceIdentificationHelper
 import com.vzor.ai.vision.ShoppingComparisonHelper
+import com.vzor.ai.data.remote.AcrCloudService
 import com.vzor.ai.data.remote.TavilySearchService
 import com.vzor.ai.data.local.PreferencesManager
 import kotlinx.coroutines.flow.first
@@ -35,7 +36,7 @@ import javax.inject.Singleton
  * 9. memory.get         — получить из памяти
  * 10. memory.set        — сохранить в память
  * 11. translate         — перевод текста
- * 12. audio.fingerprint — распознавание музыки (заглушка, нужен ACRCloud)
+ * 12. audio.fingerprint — распознавание музыки (ACRCloud)
  * 13. vision.food          — анализ еды: калории, БЖУ, ингредиенты (UC#4)
  * 14. vision.shopping      — шопинг: анализ товара, сравнение, ценники (UC#5)
  * 15. vision.accessibility — доступность: описание окружения, навигация (UC#8)
@@ -51,7 +52,8 @@ class ToolRegistry @Inject constructor(
     private val translationManager: TranslationManager,
     private val tavilySearchService: TavilySearchService,
     private val prefs: PreferencesManager,
-    private val actionExecutor: ActionExecutor
+    private val actionExecutor: ActionExecutor,
+    private val acrCloudService: AcrCloudService
 ) {
     companion object {
         private const val TAG = "ToolRegistry"
@@ -208,10 +210,7 @@ class ToolRegistry @Inject constructor(
                 "vision.place" -> executeVisionPlace(args)
                 "action.reminder" -> executeActionReminder(args)
                 "action.timer" -> executeActionTimer(args)
-                "audio.fingerprint" -> ToolResult(
-                    success = false,
-                    output = "audio.fingerprint пока не реализован (нужен ACRCloud API ключ)"
-                )
+                "audio.fingerprint" -> executeAudioFingerprint()
                 else -> ToolResult(success = false, output = "Неизвестный инструмент: $name")
             }
         } catch (e: Exception) {
@@ -458,6 +457,21 @@ class ToolRegistry @Inject constructor(
         )
         val result = actionExecutor.execute(intent)
         return ToolResult(result.success, result.message)
+    }
+
+    private suspend fun executeAudioFingerprint(): ToolResult {
+        if (!acrCloudService.isConfigured()) {
+            return ToolResult(false, "ACRCloud не настроен. Укажите Access Key, Secret и Host в настройках.")
+        }
+
+        // Записываем аудио через GlassesManager (8 сек)
+        val audioData = glassesManager.recordAudioChunk(AcrCloudService.RECOMMENDED_AUDIO_DURATION_MS)
+            ?: return ToolResult(false, "Не удалось записать аудио для распознавания")
+
+        val result = acrCloudService.identify(audioData)
+            ?: return ToolResult(false, "Не удалось распознать музыку. Попробуйте ещё раз в тихом месте.")
+
+        return ToolResult(true, result.formatForUser())
     }
 }
 
