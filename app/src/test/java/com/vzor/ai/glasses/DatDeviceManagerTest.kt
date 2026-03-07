@@ -1,20 +1,18 @@
 package com.vzor.ai.glasses
 
-import com.meta.wearable.dat.core.types.PermissionStatus as DatPermissionStatus
-import com.meta.wearable.dat.core.types.RegistrationState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 
 /**
  * Тесты DatDeviceManager — device discovery, permissions, device info.
  *
- * Использует unitTests.isReturnDefaultValues = true для стабирования
- * static-вызовов Wearables.* из DAT SDK. Для более глубокого
- * интеграционного тестирования используется mwdat-mockdevice.
+ * DAT SDK 0.4.0 real API:
+ * - RegistrationState is sealed class (not enum)
+ * - PermissionStatus is sealed interface (Granted, Denied only)
+ * - No Permission.MICROPHONE, no requestPermission(), no getDeviceInfo()
  */
 class DatDeviceManagerTest {
 
@@ -23,10 +21,8 @@ class DatDeviceManagerTest {
         val state = DatDeviceManager.DatDeviceState()
         assertFalse(state.isInitialized)
         assertFalse(state.isRegistered)
-        assertEquals(RegistrationState.NOT_REGISTERED, state.registrationState)
         assertNull(state.deviceInfo)
-        assertEquals(DatPermissionStatus.NotDetermined, state.cameraPermission)
-        assertEquals(DatPermissionStatus.NotDetermined, state.microphonePermission)
+        assertFalse(state.cameraPermissionGranted)
     }
 
     @Test
@@ -57,54 +53,19 @@ class DatDeviceManagerTest {
         val stateAllGranted = DatDeviceManager.DatDeviceState(
             isInitialized = true,
             isRegistered = true,
-            cameraPermission = DatPermissionStatus.Granted
+            cameraPermissionGranted = true
         )
         val stateNotInit = stateAllGranted.copy(isInitialized = false)
         val stateNotRegistered = stateAllGranted.copy(isRegistered = false)
-        val stateNoPerm = stateAllGranted.copy(cameraPermission = DatPermissionStatus.NotDetermined)
+        val stateNoPerm = stateAllGranted.copy(cameraPermissionGranted = false)
 
         // Только когда все три условия true
         assertTrue(stateAllGranted.isInitialized && stateAllGranted.isRegistered &&
-            stateAllGranted.cameraPermission == DatPermissionStatus.Granted)
+            stateAllGranted.cameraPermissionGranted)
 
         assertFalse(stateNotInit.isInitialized)
         assertFalse(stateNotRegistered.isRegistered)
-        assertFalse(stateNoPerm.cameraPermission == DatPermissionStatus.Granted)
-    }
-
-    @Test
-    fun `microphone available requires all conditions`() {
-        val state = DatDeviceManager.DatDeviceState(
-            isInitialized = true,
-            isRegistered = true,
-            microphonePermission = DatPermissionStatus.Granted
-        )
-        assertTrue(state.isInitialized && state.isRegistered &&
-            state.microphonePermission == DatPermissionStatus.Granted)
-    }
-
-    @Test
-    fun `registration state transitions are correct`() {
-        // NOT_REGISTERED → REGISTERING → REGISTERED
-        val states = listOf(
-            RegistrationState.NOT_REGISTERED,
-            RegistrationState.REGISTERING,
-            RegistrationState.REGISTERED
-        )
-
-        assertEquals(RegistrationState.NOT_REGISTERED, states[0])
-        assertEquals(RegistrationState.REGISTERING, states[1])
-        assertEquals(RegistrationState.REGISTERED, states[2])
-    }
-
-    @Test
-    fun `permission statuses cover all cases`() {
-        val statuses = listOf(
-            DatPermissionStatus.NotDetermined,
-            DatPermissionStatus.Granted,
-            DatPermissionStatus.Denied
-        )
-        assertEquals(3, statuses.size)
+        assertFalse(stateNoPerm.cameraPermissionGranted)
     }
 
     @Test

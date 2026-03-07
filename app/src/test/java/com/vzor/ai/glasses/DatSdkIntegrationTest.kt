@@ -2,11 +2,8 @@ package com.vzor.ai.glasses
 
 import com.meta.wearable.dat.camera.types.StreamSessionState
 import com.meta.wearable.dat.camera.types.VideoQuality
-import com.meta.wearable.dat.core.types.Permission as DatPermission
-import com.meta.wearable.dat.core.types.PermissionStatus as DatPermissionStatus
-import com.meta.wearable.dat.core.types.RegistrationState
+import com.meta.wearable.dat.core.types.Permission
 import com.vzor.ai.domain.model.GlassesState
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -16,13 +13,11 @@ import org.junit.Test
 /**
  * Тесты контракта интеграции с Meta Wearables DAT SDK 0.4.0.
  *
- * Проверяет:
- * - Корректность API surface GlassesManager для DAT SDK
- * - Состояния FSM при работе с камерой
- * - Ограничения BT bandwidth для стриминга
- * - Конфигурация стрима (quality, fps)
- * - DatDeviceManager device discovery контракты
- * - Permission request и check flows
+ * DAT SDK 0.4.0 real API:
+ * - RegistrationState is sealed class: Available, Registered, Registering, Unavailable, Unregistering
+ * - PermissionStatus is sealed interface: Granted, Denied (no NotDetermined)
+ * - StreamSessionState enum: STARTING, STARTED, STREAMING, STOPPING, STOPPED, CLOSED
+ * - Permission enum: only CAMERA (no MICROPHONE)
  */
 class DatSdkIntegrationTest {
 
@@ -42,8 +37,6 @@ class DatSdkIntegrationTest {
 
     @Test
     fun `stream resolution is limited to 720p over BT`() {
-        // BT Classic bandwidth: ~3 Mbps practical
-        // 720p @ 30fps @ moderate JPEG = ~2-3 Mbps
         val maxResWidth = 1280
         val maxResHeight = 720
         assertEquals(1280, maxResWidth)
@@ -100,14 +93,6 @@ class DatSdkIntegrationTest {
         assertEquals(GlassesState.CONNECTED, expectedState)
     }
 
-    @Test
-    fun `DAT registration states are complete`() {
-        val states = RegistrationState.entries
-        assertTrue("Should have NOT_REGISTERED", states.contains(RegistrationState.NOT_REGISTERED))
-        assertTrue("Should have REGISTERING", states.contains(RegistrationState.REGISTERING))
-        assertTrue("Should have REGISTERED", states.contains(RegistrationState.REGISTERED))
-    }
-
     // =================================================================
     // Permissions
     // =================================================================
@@ -127,23 +112,9 @@ class DatSdkIntegrationTest {
     }
 
     @Test
-    fun `DAT permissions are enumerated`() {
-        // DAT SDK 0.4.0 permissions
-        val cameraPermission = DatPermission.CAMERA
-        val micPermission = DatPermission.MICROPHONE
+    fun `DAT SDK has CAMERA permission`() {
+        val cameraPermission = Permission.CAMERA
         assertNotNull(cameraPermission)
-        assertNotNull(micPermission)
-    }
-
-    @Test
-    fun `permission statuses cover all outcomes`() {
-        val granted = DatPermissionStatus.Granted
-        val denied = DatPermissionStatus.Denied
-        val notDetermined = DatPermissionStatus.NotDetermined
-
-        assertEquals(DatPermissionStatus.Granted, granted)
-        assertEquals(DatPermissionStatus.Denied, denied)
-        assertEquals(DatPermissionStatus.NotDetermined, notDetermined)
     }
 
     // =================================================================
@@ -160,8 +131,9 @@ class DatSdkIntegrationTest {
 
     @Test
     fun `stream session state lifecycle`() {
+        // Real DAT SDK 0.4.0: STARTING → STARTED → STREAMING → STOPPING → STOPPED → CLOSED
         val expectedOrder = listOf(
-            StreamSessionState.INITIALIZING,
+            StreamSessionState.STARTING,
             StreamSessionState.STREAMING,
             StreamSessionState.STOPPED
         )
@@ -211,8 +183,6 @@ class DatSdkIntegrationTest {
 
     @Test
     fun `AutoDeviceSelector is default for single device`() {
-        // AutoDeviceSelector выбирает единственное зарегистрированное устройство
-        // Для мультидевайс сценариев нужен ManualDeviceSelector
         val selectorType = "AutoDeviceSelector"
         assertEquals("AutoDeviceSelector", selectorType)
     }
@@ -232,11 +202,8 @@ class DatSdkIntegrationTest {
 
     @Test
     fun `BT HFP for audio and DAT for camera are independent channels`() {
-        // BT HFP (audio): SCO connection → AudioRecord
-        // DAT SDK (camera): StreamSession → VideoStream
         val isBtHfpConnected = true
         val isDatStreamActive = true
-        // Оба канала работают параллельно
         assertTrue(isBtHfpConnected && isDatStreamActive)
     }
 
@@ -248,30 +215,24 @@ class DatSdkIntegrationTest {
     fun `DatDeviceManager state is comprehensive`() {
         val state = DatDeviceManager.DatDeviceState(
             isInitialized = true,
-            registrationState = RegistrationState.REGISTERED,
             isRegistered = true,
             deviceInfo = DatDeviceManager.DeviceInfoSnapshot(
                 modelName = "Ray-Ban Meta Gen 2",
                 firmwareVersion = "2.1.0",
                 batteryLevel = 80
             ),
-            cameraPermission = DatPermissionStatus.Granted,
-            microphonePermission = DatPermissionStatus.Granted
+            cameraPermissionGranted = true
         )
 
         assertTrue(state.isInitialized)
         assertTrue(state.isRegistered)
         assertNotNull(state.deviceInfo)
         assertEquals("Ray-Ban Meta Gen 2", state.deviceInfo?.modelName)
-        assertEquals(DatPermissionStatus.Granted, state.cameraPermission)
+        assertTrue(state.cameraPermissionGranted)
     }
 
     @Test
     fun `GlassesManager delegates to DatDeviceManager`() {
-        // GlassesManager.hasCameraPermission() → DatDeviceManager.isCameraAvailable()
-        // GlassesManager.isCameraAvailable() → DatDeviceManager.isCameraAvailable()
-        // GlassesManager.startRegistration() → DatDeviceManager.startRegistration()
-        // GlassesManager.getDeviceInfo() → DatDeviceManager.state.value.deviceInfo
         val delegatedMethods = listOf(
             "hasCameraPermission",
             "isCameraAvailable",

@@ -19,6 +19,7 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.util.Log
 import com.meta.wearable.dat.camera.StreamSession
+import com.meta.wearable.dat.camera.startStreamSession
 import com.meta.wearable.dat.camera.types.PhotoData
 import com.meta.wearable.dat.camera.types.StreamConfiguration
 import com.meta.wearable.dat.camera.types.StreamSessionState
@@ -444,10 +445,10 @@ class GlassesManager @Inject constructor(
                 var photoBytes: ByteArray? = null
 
                 photoResult
-                    ?.onSuccess { photoData ->
+                    .onSuccess { photoData ->
                         photoBytes = extractPhotoBytes(photoData)
                     }
-                    ?.onFailure { error ->
+                    .onFailure { error ->
                         Log.e(TAG, "Photo capture returned error: $error")
                     }
 
@@ -814,10 +815,6 @@ class GlassesManager @Inject constructor(
                     val bytes = ByteArray(data.remaining())
                     data.get(bytes)
                     bytes
-                }
-                else -> {
-                    Log.w(TAG, "Unknown PhotoData type: ${photo::class.simpleName}")
-                    null
                 }
             }
         } catch (e: Exception) {

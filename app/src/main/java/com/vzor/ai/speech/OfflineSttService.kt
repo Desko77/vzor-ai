@@ -116,6 +116,7 @@ class OfflineSttService @Inject constructor(
                     }
                 }
 
+                val flowScope = this
                 sr.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         Log.d(TAG, "Ready for speech")
@@ -168,7 +169,7 @@ class OfflineSttService @Inject constructor(
                             close()
                         } else {
                             // Для других ошибок пробуем WAV fallback
-                            launch(Dispatchers.IO) {
+                            flowScope.launch(Dispatchers.IO) {
                                 val result = recordAndTranscribe()
                                 if (result != null) {
                                     trySend(SttResult(text = result, isFinal = true, confidence = 0.6f))

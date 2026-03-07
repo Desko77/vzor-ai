@@ -43,19 +43,19 @@ class PorcupineWakeWordEngine(
         try {
             val builder = Porcupine.Builder()
                 .setAccessKey(accessKey)
-                .setSensitivity(sensitivity)
+                .setSensitivities(floatArrayOf(sensitivity))
 
             if (keywordPath != null) {
                 // Кастомный keyword из файловой системы
-                builder.setKeywordPath(keywordPath)
+                builder.setKeywordPaths(arrayOf(keywordPath))
             } else {
                 // Попробуем загрузить из assets
                 try {
-                    builder.setKeywordPath(getAssetKeywordPath())
+                    builder.setKeywordPaths(arrayOf(getAssetKeywordPath()))
                 } catch (e: Exception) {
                     // Assets не найден — используем встроенный keyword "computer" как placeholder
                     Log.w(TAG, "Custom keyword not found, using built-in 'computer' as placeholder")
-                    builder.setBuiltInKeyword(Porcupine.BuiltInKeyword.COMPUTER)
+                    builder.setKeywords(arrayOf(Porcupine.BuiltInKeyword.COMPUTER))
                 }
             }
 

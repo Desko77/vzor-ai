@@ -149,7 +149,6 @@ class ConnectionHealthMonitor @Inject constructor(
         val warnings = mutableListOf<String>()
 
         // Батарея
-        datDeviceManager.refreshDeviceInfo()
         val battery = datDeviceManager.state.value.deviceInfo?.batteryLevel ?: -1
         if (battery in 1..BATTERY_CRITICAL_THRESHOLD) {
             warnings.add("Батарея очков критически низкая: $battery%")

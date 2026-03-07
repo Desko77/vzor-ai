@@ -3,9 +3,8 @@ package com.vzor.ai.glasses
 import android.app.Activity
 import android.util.Log
 import com.meta.wearable.dat.core.Wearables
-import com.meta.wearable.dat.core.types.DeviceInfo
-import com.meta.wearable.dat.core.types.Permission as DatPermission
-import com.meta.wearable.dat.core.types.PermissionStatus as DatPermissionStatus
+import com.meta.wearable.dat.core.types.Permission
+import com.meta.wearable.dat.core.types.PermissionStatus
 import com.meta.wearable.dat.core.types.RegistrationState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,13 +23,19 @@ import javax.inject.Singleton
  * Ответственность:
  * - Инициализация DAT SDK
  * - Мониторинг регистрации устройства
- * - Запрос и проверка разрешений (CAMERA, MICROPHONE)
- * - Получение информации об устройстве (модель, firmware, батарея)
+ * - Запрос и проверка разрешений (CAMERA)
  * - Lifecycle управление DAT SDK
  *
  * Разделение от GlassesManager:
- * - DatDeviceManager: SDK init, discovery, permissions, device info
+ * - DatDeviceManager: SDK init, discovery, permissions
  * - GlassesManager: connection lifecycle, camera/audio streaming
+ *
+ * DAT SDK 0.4.0 real API:
+ * - Wearables.initialize() is suspend
+ * - RegistrationState is sealed class (not enum)
+ * - PermissionStatus is sealed interface
+ * - checkPermissionStatus() is suspend
+ * - No requestPermission(), getDeviceInfo(), Permission.MICROPHONE in SDK
  */
 @Singleton
 class DatDeviceManager @Inject constructor() {
@@ -44,15 +49,14 @@ class DatDeviceManager @Inject constructor() {
      */
     data class DatDeviceState(
         val isInitialized: Boolean = false,
-        val registrationState: RegistrationState = RegistrationState.NOT_REGISTERED,
         val isRegistered: Boolean = false,
         val deviceInfo: DeviceInfoSnapshot? = null,
-        val cameraPermission: DatPermissionStatus = DatPermissionStatus.NotDetermined,
-        val microphonePermission: DatPermissionStatus = DatPermissionStatus.NotDetermined
+        val cameraPermissionGranted: Boolean = false
     )
 
     /**
      * Снимок информации об устройстве (serializable, без SDK зависимостей).
+     * Заполняется из DeviceMetadata StateFlow когда доступно.
      */
     data class DeviceInfoSnapshot(
         val modelName: String = "",
@@ -72,24 +76,31 @@ class DatDeviceManager @Inject constructor() {
      * Инициализирует Meta Wearables DAT SDK.
      * Безопасно вызывать повторно — идемпотентная операция.
      *
+     * Wearables.initialize() is suspend в DAT SDK 0.4.0,
+     * поэтому запускаем в coroutine scope.
+     *
      * @param context Application context.
-     * @return true если SDK успешно инициализирован.
+     * @return true если инициализация запущена.
      */
     fun initialize(context: android.content.Context): Boolean {
         if (_state.value.isInitialized) return true
 
         return try {
-            Wearables.initialize(context)
-
-            _state.value = _state.value.copy(isInitialized = true)
-            Log.d(TAG, "DAT SDK initialized")
-
-            // Запускаем наблюдение за регистрацией
-            startRegistrationObserver()
-
-            // Обновляем разрешения
-            refreshPermissions()
-
+            scope.launch {
+                try {
+                    val result = Wearables.initialize(context)
+                    if (result.isSuccess()) {
+                        _state.value = _state.value.copy(isInitialized = true)
+                        Log.d(TAG, "DAT SDK initialized")
+                        startRegistrationObserver()
+                        refreshPermissions()
+                    } else {
+                        Log.e(TAG, "DAT SDK init failed: ${result.errorOrNull()}")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "DAT SDK initialization error", e)
+                }
+            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "DAT SDK initialization failed", e)
@@ -135,60 +146,18 @@ class DatDeviceManager @Inject constructor() {
     }
 
     /**
-     * Запрашивает разрешение на камеру через DAT SDK.
-     * DAT SDK показывает системный диалог на очках.
+     * Обновляет статус разрешения камеры.
+     *
+     * DAT SDK 0.4.0 не имеет Wearables.requestPermission().
+     * Разрешения управляются через Meta AI companion app.
      */
     fun requestCameraPermission() {
         if (!_state.value.isInitialized) return
 
-        try {
-            Wearables.requestPermission(DatPermission.CAMERA)
-            Log.d(TAG, "Camera permission requested")
-            // Обновим статус после запроса
+        scope.launch {
             refreshPermissions()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to request camera permission", e)
         }
-    }
-
-    /**
-     * Запрашивает разрешение на микрофон через DAT SDK.
-     */
-    fun requestMicrophonePermission() {
-        if (!_state.value.isInitialized) return
-
-        try {
-            Wearables.requestPermission(DatPermission.MICROPHONE)
-            Log.d(TAG, "Microphone permission requested")
-            refreshPermissions()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to request microphone permission", e)
-        }
-    }
-
-    /**
-     * Обновляет информацию об устройстве из DAT SDK.
-     */
-    fun refreshDeviceInfo() {
-        if (!_state.value.isInitialized || !_state.value.isRegistered) return
-
-        try {
-            val infoResult = Wearables.getDeviceInfo()
-            val info = infoResult?.getOrNull()
-            if (info != null) {
-                val snapshot = DeviceInfoSnapshot(
-                    modelName = info.modelName ?: "",
-                    firmwareVersion = info.firmwareVersion ?: "",
-                    serialNumber = info.serialNumber ?: "",
-                    batteryLevel = info.batteryLevel ?: -1
-                )
-                _state.value = _state.value.copy(deviceInfo = snapshot)
-                Log.d(TAG, "Device info: model=${snapshot.modelName}, " +
-                    "fw=${snapshot.firmwareVersion}, battery=${snapshot.batteryLevel}%")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to get device info", e)
-        }
+        Log.d(TAG, "Camera permission status refresh requested")
     }
 
     /**
@@ -196,15 +165,7 @@ class DatDeviceManager @Inject constructor() {
      */
     fun isCameraAvailable(): Boolean {
         val s = _state.value
-        return s.isInitialized && s.isRegistered && s.cameraPermission == DatPermissionStatus.Granted
-    }
-
-    /**
-     * Проверяет доступен ли микрофон.
-     */
-    fun isMicrophoneAvailable(): Boolean {
-        val s = _state.value
-        return s.isInitialized && s.isRegistered && s.microphonePermission == DatPermissionStatus.Granted
+        return s.isInitialized && s.isRegistered && s.cameraPermissionGranted
     }
 
     /**
@@ -225,17 +186,15 @@ class DatDeviceManager @Inject constructor() {
         registrationObserverJob = scope.launch {
             try {
                 Wearables.registrationState.collectLatest { regState ->
-                    val isRegistered = regState == RegistrationState.REGISTERED
+                    // RegistrationState is sealed class in DAT SDK 0.4.0
+                    val isRegistered = regState is RegistrationState.Registered
                     _state.value = _state.value.copy(
-                        registrationState = regState,
                         isRegistered = isRegistered
                     )
                     Log.d(TAG, "Registration state: $regState")
 
-                    // При регистрации обновляем info и permissions
                     if (isRegistered) {
                         refreshPermissions()
-                        refreshDeviceInfo()
                     } else {
                         _state.value = _state.value.copy(deviceInfo = null)
                     }
@@ -246,20 +205,21 @@ class DatDeviceManager @Inject constructor() {
         }
     }
 
-    private fun refreshPermissions() {
+    /**
+     * Обновляет статус разрешений.
+     * checkPermissionStatus() is suspend в DAT SDK 0.4.0.
+     */
+    private suspend fun refreshPermissions() {
         if (!_state.value.isInitialized) return
 
         try {
-            val cameraStatus = Wearables.checkPermissionStatus(DatPermission.CAMERA)
-                ?.getOrNull() ?: DatPermissionStatus.NotDetermined
-            val micStatus = Wearables.checkPermissionStatus(DatPermission.MICROPHONE)
-                ?.getOrNull() ?: DatPermissionStatus.NotDetermined
+            val cameraResult = Wearables.checkPermissionStatus(Permission.CAMERA)
+            val cameraGranted = cameraResult.getOrNull() is PermissionStatus.Granted
 
             _state.value = _state.value.copy(
-                cameraPermission = cameraStatus,
-                microphonePermission = micStatus
+                cameraPermissionGranted = cameraGranted
             )
-            Log.d(TAG, "Permissions: camera=$cameraStatus, mic=$micStatus")
+            Log.d(TAG, "Permissions: camera=$cameraGranted")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to refresh permissions", e)
         }
