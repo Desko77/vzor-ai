@@ -88,15 +88,16 @@ class DatDeviceManager @Inject constructor() {
         return try {
             scope.launch {
                 try {
-                    val result = Wearables.initialize(context)
-                    if (result.isSuccess()) {
-                        _state.value = _state.value.copy(isInitialized = true)
-                        Log.d(TAG, "DAT SDK initialized")
-                        startRegistrationObserver()
-                        refreshPermissions()
-                    } else {
-                        Log.e(TAG, "DAT SDK init failed: ${result.errorOrNull()}")
-                    }
+                    Wearables.initialize(context)
+                        .onSuccess {
+                            _state.value = _state.value.copy(isInitialized = true)
+                            Log.d(TAG, "DAT SDK initialized")
+                            startRegistrationObserver()
+                            refreshPermissions()
+                        }
+                        .onFailure { error, _ ->
+                            Log.e(TAG, "DAT SDK init failed: $error")
+                        }
                 } catch (e: Exception) {
                     Log.e(TAG, "DAT SDK initialization error", e)
                 }

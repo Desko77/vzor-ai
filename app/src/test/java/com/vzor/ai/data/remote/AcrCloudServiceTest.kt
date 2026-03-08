@@ -100,7 +100,7 @@ class AcrCloudServiceTest {
             signatureVersion = "1",
             timestamp = "1609459200"
         )
-        assertTrue(signature.isNotBlank())
+        assertTrue(signature?.isNotBlank() == true)
     }
 
     @Test

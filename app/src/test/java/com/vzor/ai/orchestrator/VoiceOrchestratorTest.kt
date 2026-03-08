@@ -6,6 +6,7 @@ import com.vzor.ai.domain.model.VoiceState
 import com.vzor.ai.domain.model.VzorIntent
 import com.vzor.ai.domain.model.IntentType
 import com.vzor.ai.speech.SttService
+import com.vzor.ai.speech.WakeWordService
 import com.vzor.ai.tts.TtsService
 import io.mockk.mockk
 import io.mockk.verify
@@ -30,6 +31,8 @@ class VoiceOrchestratorTest {
     private lateinit var sttService: SttService
     private lateinit var ttsService: TtsService
     private lateinit var intentClassifier: IntentClassifier
+    private lateinit var wakeWordService: WakeWordService
+    private lateinit var backendRouter: BackendRouter
     private lateinit var orchestrator: VoiceOrchestrator
 
     @Before
@@ -38,7 +41,9 @@ class VoiceOrchestratorTest {
         sttService = mockk(relaxed = true)
         ttsService = mockk(relaxed = true)
         intentClassifier = mockk(relaxed = true)
-        orchestrator = VoiceOrchestrator(sttService, ttsService, intentClassifier)
+        wakeWordService = mockk(relaxed = true)
+        backendRouter = mockk(relaxed = true)
+        orchestrator = VoiceOrchestrator(sttService, ttsService, intentClassifier, wakeWordService, backendRouter)
     }
 
     @After
