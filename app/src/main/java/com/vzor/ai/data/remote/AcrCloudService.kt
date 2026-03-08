@@ -12,6 +12,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.security.InvalidKeyException
+import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import javax.inject.Inject
@@ -171,7 +172,7 @@ class AcrCloudService @Inject constructor(
             val mac = Mac.getInstance("HmacSHA1")
             mac.init(SecretKeySpec(accessSecret.toByteArray(), "HmacSHA1"))
             val rawHmac = mac.doFinal(stringToSign.toByteArray())
-            android.util.Base64.encodeToString(rawHmac, android.util.Base64.NO_WRAP)
+            Base64.getEncoder().encodeToString(rawHmac)
         } catch (e: InvalidKeyException) {
             Log.e(TAG, "Invalid ACRCloud secret key", e)
             null
