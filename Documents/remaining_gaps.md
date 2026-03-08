@@ -1,7 +1,7 @@
 # Vzor: Оставшиеся пробелы и зависимости
 
-**Дата:** 2026-03-07
-**Текущая реализация ТЗ:** ~96%
+**Дата:** 2026-03-08
+**Текущая реализация ТЗ:** ~97.5%
 **Review backlog:** 1 open / 49 closed
 
 ---
@@ -16,12 +16,12 @@
 - **Файлы:** `glasses/GlassesManager.kt`, `glasses/DatDeviceManager.kt`, `glasses/ConnectionHealthMonitor.kt`
 
 ### 1.2 Picovoice Porcupine (Wake Word)
-- **Статус:** Нужен Access Key из Picovoice Console
-- **Влияние:** Точное обнаружение wake word "Взор"
-- **Текущий workaround:** Energy-based VAD + ZCR heuristic в WakeWordService
-- **Что нужно:** Picovoice Access Key + обучение custom keyword "Взор"
-- **Файлы:** `speech/WakeWordService.kt`
-- **Альтернатива:** openWakeWord (open-source, ONNX) — можно реализовать
+- **Статус:** Полностью реализован (Stage 37) — PorcupineWakeWordEngine + EnergyWakeWordEngine fallback
+- **Что работает:** WakeWordService автоматически выбирает engine: Porcupine (если Access Key задан в настройках) или Energy-based VAD (fallback)
+- **Ограничение:** Для продакшн-точности нужен Picovoice Access Key (бесплатный tier: 3 месяца) + custom keyword "Взор" (.ppn файл из Picovoice Console)
+- **Текущее поведение без Access Key:** EnergyWakeWordEngine (RMS + ZCR heuristic), подтверждение через STT
+- **Тесты:** PorcupineWakeWordEngineTest, WakeWordServiceTest, EnergyWakeWordEngineTest
+- **Файлы:** `speech/WakeWordService.kt`, `speech/PorcupineWakeWordEngine.kt`, `speech/EnergyWakeWordEngine.kt`, `speech/WakeWordEngine.kt`
 
 ---
 
@@ -92,18 +92,18 @@
 
 | Tier | Вес | Прогресс | Лимитирующий фактор |
 |------|:---:|:--------:|---------------------|
-| Tier 1 — Sensor | 10% | 70% | Picovoice (wake word) |
+| Tier 1 — Sensor | 10% | 85% | Физические очки + Picovoice Access Key |
 | Tier 2 — Orchestration | 35% | 100% | — |
 | Tier 3 — Edge AI | 15% | 95% | — |
 | Tier 4 — Cloud | 20% | 100% | — |
 | Use Cases | 15% | 100% | — |
 | Translation | 5% | 95% | — |
-| **Итого** | **100%** | **~96%** | Picovoice wake word |
+| **Итого** | **100%** | **~97.5%** | Физические очки для финального тестирования |
 
 ---
 
 ## 7. Приоритеты следующих шагов
 
-1. **Picovoice Porcupine:** PorcupineWakeWordEngine реализован с fallback на EnergyWakeWordEngine (+15% to Tier 1 при наличии Access Key)
-2. **Физические очки:** тестирование DAT SDK с реальными Ray-Ban Meta Gen 2
+1. **Picovoice Access Key:** PorcupineWakeWordEngine реализован (Stage 37), нужен Access Key из Picovoice Console + custom keyword "Взор" (.ppn). Для 10/10 Tier 1
+2. **Физические очки:** тестирование DAT SDK с реальными Ray-Ban Meta Gen 2 (единственный оставшийся блокер для production)
 3. **Без внешних зависимостей:** ProGuard правила, signing config, интеграционные тесты

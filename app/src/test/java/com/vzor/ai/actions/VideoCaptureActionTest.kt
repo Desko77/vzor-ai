@@ -7,25 +7,19 @@ class VideoCaptureActionTest {
 
     @Test
     fun `default duration is 15 seconds`() {
-        // Verify the default constant exists and is reasonable
+        // Kotlin const val is inlined at compile time but still generates a static field
+        // on the outer class. Access via outer class field.
         val field = VideoCaptureAction::class.java.getDeclaredField("DEFAULT_DURATION_SEC")
         field.isAccessible = true
-        // Static companion field
-        val companion = VideoCaptureAction::class.java.getDeclaredClasses()
-            .first { it.simpleName == "Companion" }
-        val defaultDuration = companion.getDeclaredField("DEFAULT_DURATION_SEC").also {
-            it.isAccessible = true
-        }.getInt(null)
+        val defaultDuration = field.getInt(null)
         assertEquals(15, defaultDuration)
     }
 
     @Test
     fun `max duration is 60 seconds`() {
-        val companion = VideoCaptureAction::class.java.getDeclaredClasses()
-            .first { it.simpleName == "Companion" }
-        val maxDuration = companion.getDeclaredField("MAX_DURATION_SEC").also {
-            it.isAccessible = true
-        }.getInt(null)
+        val field = VideoCaptureAction::class.java.getDeclaredField("MAX_DURATION_SEC")
+        field.isAccessible = true
+        val maxDuration = field.getInt(null)
         assertEquals(60, maxDuration)
     }
 
