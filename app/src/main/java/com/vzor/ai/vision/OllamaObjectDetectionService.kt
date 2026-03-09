@@ -35,7 +35,7 @@ class OllamaObjectDetectionService @Inject constructor(
         private const val DETECTION_MEMORY_MB = 14_000
         private const val MAX_OBJECTS = 20
         private val CONFIDENCE_PATTERN = Regex("""\((\d*\.?\d+)\)""")
-        private val BBOX_PATTERN = Regex("""\[\s*(\d*\.?\d+)\s*,\s*(\d*\.?\d+)\s*,\s*(\d*\.?\d+)\s*,\s*(\d*\.?\d+)\s*]""")
+        private val BBOX_PATTERN = Regex("""\[\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*]""")
     }
 
     data class DetectionResult(

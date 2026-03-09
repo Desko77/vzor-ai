@@ -340,7 +340,7 @@ class SpeakerDiarizer @Inject constructor() {
         val minLag = SAMPLE_RATE / 400 // 40 samples
         val maxLag = SAMPLE_RATE / 80  // 200 samples
 
-        if (maxLag >= samples.size) return 0f
+        if (minLag >= samples.size) return 0f
 
         var bestLag = 0
         var bestCorrelation = 0.0

@@ -279,16 +279,18 @@ class SpeakerDiarizerTest {
     }
 
     /**
-     * Creates a PCM 16-bit mono frame with a given amplitude (constant signal).
+     * Creates a PCM 16-bit mono frame with a periodic signal (~200Hz) at given amplitude.
+     * Periodic signal ensures estimatePitch returns non-zero, enabling profile updates.
      */
     private fun createLoudFrame(sizeBytes: Int, amplitude: Int): ByteArray {
         val frame = ByteArray(sizeBytes)
-        var i = 0
-        while (i < sizeBytes - 1) {
-            val sample = amplitude.toShort()
-            frame[i] = (sample.toInt() and 0xFF).toByte()
-            frame[i + 1] = (sample.toInt() shr 8).toByte()
-            i += 2
+        val numSamples = sizeBytes / 2
+        val period = 80 // ~200Hz at 16kHz sample rate
+        for (i in 0 until numSamples) {
+            val sample = (amplitude * kotlin.math.sin(2.0 * Math.PI * i / period)).toInt()
+                .coerceIn(-32768, 32767).toShort()
+            frame[i * 2] = (sample.toInt() and 0xFF).toByte()
+            frame[i * 2 + 1] = (sample.toInt() shr 8).toByte()
         }
         return frame
     }
