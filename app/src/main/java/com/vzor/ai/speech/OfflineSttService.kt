@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -116,6 +117,7 @@ class OfflineSttService @Inject constructor(
                     }
                 }
 
+                val flowScope = this
                 sr.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         Log.d(TAG, "Ready for speech")
@@ -168,7 +170,7 @@ class OfflineSttService @Inject constructor(
                             close()
                         } else {
                             // Для других ошибок пробуем WAV fallback
-                            launch(Dispatchers.IO) {
+                            flowScope.launch(Dispatchers.IO) {
                                 val result = recordAndTranscribe()
                                 if (result != null) {
                                     trySend(SttResult(text = result, isFinal = true, confidence = 0.6f))

@@ -154,7 +154,7 @@ Respond ONLY with the number and confidence (0.0-1.0) for EACH label, one per li
         response: String,
         labels: List<String>
     ): ClassificationResult? {
-        val scorePattern = Regex("""(\d+)\s*:\s*([\d.]+)""")
+        val scorePattern = Regex("""(\d+)\s*:\s*(-?[\d.]+)""")
         val scores = mutableListOf<LabelScore>()
 
         for (match in scorePattern.findAll(response)) {

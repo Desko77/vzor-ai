@@ -201,6 +201,7 @@ class IntentClassifier @Inject constructor() {
             keywords = listOf(
                 WeightedKeyword("включи комментарий", 1.0f),
                 WeightedKeyword("режим наблюдения", 1.0f),
+                WeightedKeyword("комментируй что", 1.2f),
                 WeightedKeyword("комментируй", 1.0f, fuzzyThreshold = 1),
                 WeightedKeyword("что вокруг", 0.8f),
                 WeightedKeyword("выключи комментарий", 1.0f),

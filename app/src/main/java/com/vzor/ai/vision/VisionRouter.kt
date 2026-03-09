@@ -15,7 +15,8 @@ class VisionRouter @Inject constructor(
     private val onDeviceProcessor: OnDeviceVisionProcessor,
     private val mediaPipeProcessor: MediaPipeVisionProcessor,
     private val budgetManager: VisionBudgetManager,
-    private val clipEmbeddingService: ClipEmbeddingService? = null
+    private val clipEmbeddingService: ClipEmbeddingService? = null,
+    private val ollamaObjectDetection: OllamaObjectDetectionService? = null
 ) {
     companion object {
         private const val TAG = "VisionRouter"
@@ -122,18 +123,44 @@ class VisionRouter @Inject constructor(
             null
         }
 
-        // 4. Cloud VLM (обогащённый MediaPipe + CLIP результатами)
-        val enrichedPrompt = if (sceneCategory != null) {
-            "$prompt\n[Предварительная классификация сцены: $sceneCategory]"
-        } else {
-            prompt
+        // 4. Ollama object detection (Edge AI, Qwen-VL, более точное чем MediaPipe)
+        val edgeObjects = try {
+            ollamaObjectDetection?.detectObjects(imageBytes)?.objects
+        } catch (e: Exception) {
+            Log.d(TAG, "Ollama object detection skipped: ${e.message}")
+            null
         }
 
+        // 5. Если Edge AI дал достаточно объектов — можно обойтись без Cloud VLM
+        if (edgeObjects != null && edgeObjects.size >= 3) {
+            val combinedObjects = mergeDetections(
+                mpObjects.map { DetectedObject(it.label, it.confidence) },
+                edgeObjects
+            )
+            val sceneData = SceneData(
+                sceneId = UUID.randomUUID().toString(),
+                timestamp = System.currentTimeMillis(),
+                sceneSummary = buildEdgeSummary(combinedObjects, sceneCategory),
+                objects = combinedObjects,
+                faceCount = faces.size,
+                gestures = gestures,
+                stability = computeStability(combinedObjects),
+                ttlMs = PerceptionCache.DefaultTtl.OBJECTS_MS
+            )
+            perceptionCache.put(CACHE_KEY_SCENE_PREPROCESSED, sceneData, PerceptionCache.DefaultTtl.OBJECTS_MS)
+            return Result.success(sceneData)
+        }
+
+        // 6. Cloud VLM (обогащённый MediaPipe + CLIP + Edge результатами)
+        val enrichedPrompt = buildEnrichedPrompt(prompt, sceneCategory, edgeObjects)
+
         return analyzeScene(imageBytes, enrichedPrompt, forceRefresh).map { sceneData ->
+            val allEdgeObjects = (edgeObjects ?: emptyList()) +
+                mpObjects.map { DetectedObject(it.label, it.confidence) }
             sceneData.copy(
                 faceCount = faces.size,
                 gestures = gestures,
-                objects = sceneData.objects + mpObjects.map { DetectedObject(it.label, it.confidence) }
+                objects = mergeDetections(sceneData.objects, allEdgeObjects)
             )
         }
     }
@@ -205,6 +232,75 @@ class VisionRouter @Inject constructor(
             sceneData.objects.size > 5 -> PerceptionCache.DefaultTtl.OBJECTS_MS
             else -> PerceptionCache.DefaultTtl.SCENE_DESCRIPTION_MS
         }
+    }
+
+    /**
+     * Объединяет детекции из разных источников, убирая дубликаты
+     * по похожим меткам (предпочитает более высокий confidence).
+     */
+    private fun mergeDetections(
+        primary: List<DetectedObject>,
+        secondary: List<DetectedObject>
+    ): List<DetectedObject> {
+        val merged = primary.toMutableList()
+        for (obj in secondary) {
+            val duplicate = merged.find {
+                it.label.equals(obj.label, ignoreCase = true) ||
+                    it.label.contains(obj.label, ignoreCase = true) ||
+                    obj.label.contains(it.label, ignoreCase = true)
+            }
+            if (duplicate != null) {
+                // Оставляем с более высоким confidence
+                if (obj.confidence > duplicate.confidence) {
+                    merged.remove(duplicate)
+                    merged.add(obj)
+                }
+            } else {
+                merged.add(obj)
+            }
+        }
+        return merged.sortedByDescending { it.confidence }
+    }
+
+    /**
+     * Строит обогащённый промпт для Cloud VLM с результатами Edge AI.
+     */
+    private fun buildEnrichedPrompt(
+        prompt: String,
+        sceneCategory: String?,
+        edgeObjects: List<DetectedObject>?
+    ): String {
+        val hints = mutableListOf<String>()
+        if (sceneCategory != null) {
+            hints.add("Предварительная классификация сцены: $sceneCategory")
+        }
+        if (!edgeObjects.isNullOrEmpty()) {
+            val labels = edgeObjects.take(5).joinToString(", ") { "${it.label} (${it.confidence})" }
+            hints.add("Edge AI детекция: $labels")
+        }
+        return if (hints.isNotEmpty()) {
+            "$prompt\n[${hints.joinToString("; ")}]"
+        } else {
+            prompt
+        }
+    }
+
+    /**
+     * Строит краткое описание сцены по Edge AI результатам (без Cloud VLM).
+     */
+    private fun buildEdgeSummary(objects: List<DetectedObject>, category: String?): String {
+        val topObjects = objects.take(5).joinToString(", ") { it.label }
+        val prefix = if (category != null) "[$category] " else ""
+        return "${prefix}Обнаружены: $topObjects"
+    }
+
+    /**
+     * Вычисляет stability score для Edge AI результатов.
+     */
+    private fun computeStability(objects: List<DetectedObject>): Float {
+        if (objects.isEmpty()) return 0f
+        val avgConf = objects.map { it.confidence }.average().toFloat()
+        return (avgConf * 0.7f + 0.3f).coerceIn(0f, 1f)
     }
 
 }

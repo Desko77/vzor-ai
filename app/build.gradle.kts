@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.vzor.ai"
-        minSdk = 26
+        minSdk = 29
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
@@ -118,6 +118,9 @@ dependencies {
     implementation(libs.mwdat.camera)
     testImplementation(libs.mwdat.mockdevice)
 
+    // Picovoice Porcupine Wake Word SDK
+    implementation(libs.porcupine.android)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
@@ -139,4 +142,5 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
+    testImplementation("org.json:json:20231013")
 }

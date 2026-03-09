@@ -87,6 +87,12 @@ fun SettingsScreen(
                 onValueChange = viewModel::setTavilyApiKey
             )
 
+            ApiKeyField(
+                label = "Picovoice Access Key (wake word)",
+                value = uiState.picovoiceAccessKey,
+                onValueChange = viewModel::setPicovoiceAccessKey
+            )
+
             HorizontalDivider()
 
             // Local AI

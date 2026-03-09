@@ -67,7 +67,7 @@ class VoiceOrchestrator @Inject constructor(
             Log.d(TAG, "Wake word suppressed (music playing)")
             return
         }
-        onEvent(VoiceEvent.WakeWordDetected)
+        onEvent(VoiceEvent.WakeWordDetected())
     }
 
     /**

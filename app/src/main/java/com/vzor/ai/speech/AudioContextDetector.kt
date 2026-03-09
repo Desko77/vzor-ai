@@ -45,7 +45,7 @@ class AudioContextDetector @Inject constructor() {
 
         // Spectral flatness пороги (0.0 = тональный, 1.0 = белый шум)
         private const val FLATNESS_MUSIC_THRESHOLD = 0.5
-        private const val FLATNESS_NOISE_THRESHOLD = 0.8
+        private const val FLATNESS_NOISE_THRESHOLD = 0.65
     }
 
     private val _currentContext = MutableStateFlow(AudioContext.SILENCE)
