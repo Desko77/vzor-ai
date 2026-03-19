@@ -71,6 +71,7 @@ class PreferencesManager @Inject constructor(
         private const val ENCRYPTED_ACRCLOUD_KEY = "acrcloud_access_key"
         private const val ENCRYPTED_ACRCLOUD_SECRET = "acrcloud_access_secret"
         private const val ENCRYPTED_ACRCLOUD_HOST = "acrcloud_host"
+        private const val ENCRYPTED_PICOVOICE_KEY = "picovoice_access_key"
     }
 
     // --- Настройки (DataStore, не чувствительные) ---
@@ -180,6 +181,11 @@ class PreferencesManager @Inject constructor(
     )
     val acrCloudHost: StateFlow<String> = _acrCloudHost.asStateFlow()
 
+    private val _picovoiceAccessKey = MutableStateFlow(
+        encryptedPrefs.getString(ENCRYPTED_PICOVOICE_KEY, "") ?: ""
+    )
+    val picovoiceAccessKey: StateFlow<String> = _picovoiceAccessKey.asStateFlow()
+
     suspend fun setGeminiApiKey(key: String) {
         withContext(Dispatchers.IO) {
             encryptedPrefs.edit().putString(ENCRYPTED_GEMINI_KEY, key).commit()
@@ -220,6 +226,13 @@ class PreferencesManager @Inject constructor(
             encryptedPrefs.edit().putString(ENCRYPTED_TAVILY_KEY, key).commit()
         }
         _tavilyApiKey.value = key
+    }
+
+    suspend fun setPicovoiceAccessKey(key: String) {
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit().putString(ENCRYPTED_PICOVOICE_KEY, key).commit()
+        }
+        _picovoiceAccessKey.value = key
     }
 
     suspend fun setAcrCloudCredentials(accessKey: String, accessSecret: String, host: String) {

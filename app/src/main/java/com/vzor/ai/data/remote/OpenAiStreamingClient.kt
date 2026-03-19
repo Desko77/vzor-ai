@@ -12,6 +12,7 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
+import com.vzor.ai.domain.model.StreamChunk
 import javax.inject.Inject
 import javax.inject.Singleton
 

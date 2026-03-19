@@ -24,7 +24,8 @@ data class SettingsUiState(
     val yandexApiKey: String = "",
     val systemPrompt: String = "",
     val developerMode: Boolean = false,
-    val homeSsid: String = ""
+    val homeSsid: String = "",
+    val picovoiceAccessKey: String = ""
 )
 
 @HiltViewModel
@@ -97,6 +98,12 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+
+        viewModelScope.launch {
+            prefs.picovoiceAccessKey.collect { key ->
+                _uiState.update { it.copy(picovoiceAccessKey = key) }
+            }
+        }
     }
 
     fun setAiProvider(provider: AiProvider) {
@@ -149,5 +156,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setHomeSsid(ssid: String) {
         viewModelScope.launch { prefs.setHomeSsid(ssid) }
+    }
+
+    fun setPicovoiceAccessKey(key: String) {
+        viewModelScope.launch { prefs.setPicovoiceAccessKey(key) }
     }
 }

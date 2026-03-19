@@ -39,14 +39,14 @@ class AccessibilityHelperTest {
 
     @Test
     fun `buildSceneDescriptionPrompt includes directions`() {
-        val prompt = AccessibilityHelper.buildSceneDescriptionPrompt()
+        val prompt = AccessibilityHelper.buildSceneDescriptionPrompt().lowercase()
         assertTrue(prompt.contains("слева"))
         assertTrue(prompt.contains("препятстви"))
     }
 
     @Test
     fun `buildNavigationAssistPrompt includes safety`() {
-        val prompt = AccessibilityHelper.buildNavigationAssistPrompt()
+        val prompt = AccessibilityHelper.buildNavigationAssistPrompt().lowercase()
         assertTrue(prompt.contains("безопасно"))
         assertTrue(prompt.contains("ступеньки"))
     }

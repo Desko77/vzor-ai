@@ -19,6 +19,8 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.util.Log
 import com.meta.wearable.dat.camera.StreamSession
+import com.meta.wearable.dat.camera.startStreamSession
+import com.meta.wearable.dat.camera.types.CaptureError
 import com.meta.wearable.dat.camera.types.PhotoData
 import com.meta.wearable.dat.camera.types.StreamConfiguration
 import com.meta.wearable.dat.camera.types.StreamSessionState
@@ -26,8 +28,6 @@ import com.meta.wearable.dat.camera.types.VideoFrame
 import com.meta.wearable.dat.camera.types.VideoQuality
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
-import com.meta.wearable.dat.core.types.Permission as DatPermission
-import com.meta.wearable.dat.core.types.PermissionStatus as DatPermissionStatus
 import com.meta.wearable.dat.core.types.RegistrationState
 import com.vzor.ai.domain.model.GlassesState
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -67,7 +67,8 @@ import kotlin.coroutines.resume
  */
 @Singleton
 class GlassesManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    val datDeviceManager: DatDeviceManager
 ) {
     companion object {
         private const val TAG = "GlassesManager"
@@ -131,16 +132,18 @@ class GlassesManager @Inject constructor(
         if (isDatInitialized) return
 
         try {
-            Wearables.initialize(context)
-            isDatInitialized = true
-            Log.d(TAG, "Meta Wearables DAT SDK initialized")
+            isDatInitialized = datDeviceManager.initialize(context)
+            if (!isDatInitialized) {
+                Log.e(TAG, "DAT SDK initialization failed via DatDeviceManager")
+                return
+            }
+            Log.d(TAG, "Meta Wearables DAT SDK initialized via DatDeviceManager")
 
-            // Наблюдаем за состоянием регистрации
+            // Наблюдаем за состоянием регистрации через DatDeviceManager
             registrationObserverJob = scope.launch {
-                Wearables.registrationState.collectLatest { regState ->
-                    val isRegisteredNow = regState == RegistrationState.REGISTERED
+                datDeviceManager.state.collectLatest { datState ->
+                    val isRegisteredNow = datState.isRegistered
                     _registrationState.value = isRegisteredNow
-                    Log.d(TAG, "DAT registration state: $regState")
 
                     if (isRegisteredNow && _state.value == GlassesState.CONNECTING) {
                         _state.value = GlassesState.CONNECTED
@@ -154,24 +157,33 @@ class GlassesManager @Inject constructor(
 
     /**
      * Запускает регистрацию DAT SDK из Activity.
-     * Требуется Activity context для DAT SDK 0.4.0+.
+     * Требуется Activity context для DAT SDK 0.5.0+.
      */
     fun startRegistration(activity: Activity) {
         initializeDatSdk()
-        if (!_registrationState.value) {
-            Wearables.startRegistration(activity)
-            Log.d(TAG, "DAT registration started from Activity")
-        }
+        datDeviceManager.startRegistration(activity)
     }
 
     /**
      * Отменяет регистрацию DAT SDK (отвязывает очки от приложения).
      */
     fun unregisterDat(activity: Activity) {
-        if (isDatInitialized) {
-            Wearables.startUnregistration(activity)
-            Log.d(TAG, "DAT unregistration started")
-        }
+        datDeviceManager.startUnregistration(activity)
+    }
+
+    /**
+     * Запрашивает разрешение камеры через DAT SDK.
+     * DAT SDK покажет диалог подтверждения на устройстве.
+     */
+    fun requestCameraPermission() {
+        datDeviceManager.requestCameraPermission()
+    }
+
+    /**
+     * Возвращает информацию об устройстве (модель, firmware, батарея).
+     */
+    fun getDeviceInfo(): DatDeviceManager.DeviceInfoSnapshot? {
+        return datDeviceManager.state.value.deviceInfo
     }
 
     // --- Bluetooth HFP Profile Listener ---
@@ -239,12 +251,10 @@ class GlassesManager @Inject constructor(
             initializeDatSdk()
 
             // Start DAT registration (opens Meta AI companion app flow)
-            // DAT SDK 0.4.0 requires Activity for registration
             if (!_registrationState.value) {
                 val activity = context as? Activity
                 if (activity != null) {
-                    Wearables.startRegistration(activity)
-                    Log.d(TAG, "DAT registration started")
+                    datDeviceManager.startRegistration(activity)
                 } else {
                     Log.w(TAG, "Cannot start DAT registration — Activity context required. " +
                         "Call startRegistration(activity) explicitly from Activity.")
@@ -400,16 +410,7 @@ class GlassesManager @Inject constructor(
      * @return true если разрешение выдано, false если нужно запросить.
      */
     fun hasCameraPermission(): Boolean {
-        if (!isDatInitialized) return false
-        return try {
-            val result = Wearables.checkPermissionStatus(DatPermission.CAMERA)
-            // DatResult — проверяем через getOrNull()
-            val status = result.getOrNull()
-            status == DatPermissionStatus.Granted
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to check DAT camera permission", e)
-            false
-        }
+        return datDeviceManager.isCameraAvailable()
     }
 
     /**
@@ -445,11 +446,17 @@ class GlassesManager @Inject constructor(
                 var photoBytes: ByteArray? = null
 
                 photoResult
-                    ?.onSuccess { photoData ->
+                    .onSuccess { photoData ->
                         photoBytes = extractPhotoBytes(photoData)
                     }
-                    ?.onFailure { error ->
-                        Log.e(TAG, "Photo capture returned error: $error")
+                    .onFailure { captureError, cause ->
+                        val msg = when (captureError) {
+                            is CaptureError.DeviceDisconnected -> "Device disconnected"
+                            is CaptureError.NotStreaming -> "Not streaming"
+                            is CaptureError.CaptureInProgress -> "Capture already in progress"
+                            is CaptureError.CaptureFailed -> "Capture failed"
+                        }
+                        Log.e(TAG, "Photo capture error: $msg", cause)
                     }
 
                 // Если сессия была временная, закрываем
@@ -558,7 +565,7 @@ class GlassesManager @Inject constructor(
      * Проверяет, доступна ли камера очков (DAT SDK зарегистрирован + разрешение).
      */
     fun isCameraAvailable(): Boolean {
-        return isDatInitialized && _registrationState.value && hasCameraPermission()
+        return datDeviceManager.isCameraAvailable()
     }
 
     /**
@@ -815,10 +822,6 @@ class GlassesManager @Inject constructor(
                     val bytes = ByteArray(data.remaining())
                     data.get(bytes)
                     bytes
-                }
-                else -> {
-                    Log.w(TAG, "Unknown PhotoData type: ${photo::class.simpleName}")
-                    null
                 }
             }
         } catch (e: Exception) {

@@ -152,7 +152,15 @@ Local: память (где припарковал и т.д.).
 - **Телефон:** Samsung Galaxy Z Fold 7 — Snapdragon 8 Elite, 12/16GB RAM, Android 16
 - **Домашний сервер:** Ryzen AI Max 395, 128GB RAM, Ollama API
 
-## SDK Limitations (Meta Wearables DAT, developer preview)
+## Meta Wearables DAT SDK
+
+- **Documentation**: https://wearables.developer.meta.com/docs/ai-solutions
+- **Real API reference** (extracted from AAR JARs): `Documents/dat-sdk-real-api.md`
+- **Maven repo**: `https://maven.pkg.github.com/facebook/meta-wearables-dat-android` (requires `read:packages` GitHub token)
+- **Version**: 0.5.0 (mwdat-core, mwdat-camera, mwdat-mockdevice)
+- **minSdk**: 29 (Android 10+, required by mwdat-camera)
+
+### SDK Limitations (developer preview)
 
 - Видеострим макс. 720p/30fps через Bluetooth
 - "Hey Meta" недоступен сторонним приложениям

@@ -1,5 +1,7 @@
 package com.vzor.ai.data.remote
 
+import com.vzor.ai.data.local.PreferencesManager
+import io.mockk.mockk
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -100,7 +102,7 @@ class AcrCloudServiceTest {
             signatureVersion = "1",
             timestamp = "1609459200"
         )
-        assertTrue(signature.isNotBlank())
+        assertTrue(signature?.isNotBlank() == true)
     }
 
     @Test
@@ -149,18 +151,12 @@ class AcrCloudServiceTest {
 
     /**
      * Создаём AcrCloudService с mock-зависимостями для тестирования парсинга.
-     * PreferencesManager требует Android Context, поэтому используем reflection.
+     * PreferencesManager мокается — используются только parseResponse и generateSignature.
      */
     private fun createService(): AcrCloudService {
-        // AcrCloudService requires Android Context through PreferencesManager,
-        // but parseResponse and generateSignature are internal and work without it.
-        // Using a constructor that allows testing parse/signature methods.
-        return AcrCloudService::class.java.getDeclaredConstructor(
-            okhttp3.OkHttpClient::class.java,
-            com.vzor.ai.data.local.PreferencesManager::class.java
-        ).also { it.isAccessible = true }.newInstance(
+        return AcrCloudService(
             okhttp3.OkHttpClient(),
-            null // PreferencesManager is null — only parse/signature methods are tested
+            mockk<PreferencesManager>(relaxed = true)
         )
     }
 }

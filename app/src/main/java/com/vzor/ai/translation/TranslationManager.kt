@@ -100,9 +100,6 @@ class TranslationManager @Inject constructor(
             TranslationState(mode = mode, isActive = true, status = "listening")
         }
 
-        // Сбрасываем diarization для новой сессии
-        speakerDiarizer.reset()
-
         // Показываем субтитры для режимов A и C
         if (mode == TranslationMode.LISTEN || mode == TranslationMode.BIDIRECTIONAL) {
             subtitleOverlay?.show()
@@ -110,6 +107,8 @@ class TranslationManager @Inject constructor(
 
         listeningJob = scope.launch {
             try {
+                // Сбрасываем diarization для новой сессии (suspend)
+                speakerDiarizer.reset()
                 startListeningPipeline(mode)
             } catch (e: Exception) {
                 Log.e(TAG, "Translation pipeline error", e)
