@@ -157,7 +157,7 @@ Local: память (где припарковал и т.д.).
 - **Documentation**: https://wearables.developer.meta.com/docs/ai-solutions
 - **Real API reference** (extracted from AAR JARs): `Documents/dat-sdk-real-api.md`
 - **Maven repo**: `https://maven.pkg.github.com/facebook/meta-wearables-dat-android` (requires `read:packages` GitHub token)
-- **Version**: 0.4.0 (mwdat-core, mwdat-camera, mwdat-mockdevice)
+- **Version**: 0.5.0 (mwdat-core, mwdat-camera, mwdat-mockdevice)
 - **minSdk**: 29 (Android 10+, required by mwdat-camera)
 
 ### SDK Limitations (developer preview)

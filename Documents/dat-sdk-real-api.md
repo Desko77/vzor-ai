@@ -1,6 +1,14 @@
-# Meta Wearables DAT SDK 0.4.0 — Real API Reference
+# Meta Wearables DAT SDK 0.5.0 — Real API Reference
 
 Extracted from actual AAR JARs via `javap`. Use this instead of documentation.
+
+## Changes in 0.5.0 (from 0.4.0)
+
+- `capturePhoto()` now returns `DatResult<PhotoData, CaptureError>` (was `kotlin.Result<PhotoData>`)
+- New sealed interface `CaptureError` with typed error cases
+- New `LinkState` enum on Device (replaces boolean `available`)
+- 720x1280 high-resolution video streaming support
+- R8 minification fixes
 
 ## Critical differences from what was coded
 
@@ -12,7 +20,7 @@ Extracted from actual AAR JARs via `javap`. Use this instead of documentation.
 | `RegistrationState.REGISTERED` (enum) | **Sealed class**: `is RegistrationState.Registered` |
 | `PermissionStatus.Granted` (enum) | **Sealed interface**: `is PermissionStatus.Granted` |
 | `DatResult.getOrNull()` | Value class (inline), API: `.getOrNull()`, `.onSuccess{}`, `.onFailure{}` |
-| `capturePhoto()` returns `DatResult?` | **suspend**, returns `Result<PhotoData>` (kotlin.Result) |
+| `capturePhoto()` returns `DatResult?` | **suspend**, returns `DatResult<PhotoData, CaptureError>` |
 
 ## Wearables (com.meta.wearable.dat.core.Wearables)
 
@@ -40,7 +48,7 @@ object Wearables {
 interface StreamSession {
     val state: StateFlow<StreamSessionState>
     val videoStream: Flow<VideoFrame>
-    suspend fun capturePhoto(): Result<PhotoData>  // kotlin.Result, NOT DatResult
+    suspend fun capturePhoto(): DatResult<PhotoData, CaptureError>
     fun close()
 }
 ```
@@ -108,6 +116,25 @@ sealed interface PhotoData {
     data class HEIC(val data: ByteBuffer) : PhotoData
 }
 ```
+
+## CaptureError (sealed interface) — NEW in 0.5.0
+
+```
+sealed interface CaptureError : DatError {
+    object DeviceDisconnected : CaptureError
+    object NotStreaming : CaptureError
+    object CaptureInProgress : CaptureError
+    object CaptureFailed : CaptureError
+}
+```
+
+## LinkState (enum) — NEW in 0.5.0
+
+```
+enum class LinkState { CONNECTING, CONNECTED, DISCONNECTED }
+```
+
+Replaces boolean `Device.available`. Access via `Device.linkState`.
 
 ## StreamConfiguration (data class)
 

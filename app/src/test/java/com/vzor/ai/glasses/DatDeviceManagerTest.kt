@@ -9,7 +9,7 @@ import org.junit.Test
 /**
  * Тесты DatDeviceManager — device discovery, permissions, device info.
  *
- * DAT SDK 0.4.0 real API:
+ * DAT SDK 0.5.0 real API:
  * - RegistrationState is sealed class (not enum)
  * - PermissionStatus is sealed interface (Granted, Denied only)
  * - No Permission.MICROPHONE, no requestPermission(), no getDeviceInfo()

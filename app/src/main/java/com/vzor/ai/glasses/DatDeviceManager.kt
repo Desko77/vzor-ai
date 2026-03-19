@@ -30,7 +30,7 @@ import javax.inject.Singleton
  * - DatDeviceManager: SDK init, discovery, permissions
  * - GlassesManager: connection lifecycle, camera/audio streaming
  *
- * DAT SDK 0.4.0 real API:
+ * DAT SDK 0.5.0 real API:
  * - Wearables.initialize() is suspend
  * - RegistrationState is sealed class (not enum)
  * - PermissionStatus is sealed interface
@@ -76,7 +76,7 @@ class DatDeviceManager @Inject constructor() {
      * Инициализирует Meta Wearables DAT SDK.
      * Безопасно вызывать повторно — идемпотентная операция.
      *
-     * Wearables.initialize() is suspend в DAT SDK 0.4.0,
+     * Wearables.initialize() is suspend в DAT SDK 0.5.0,
      * поэтому запускаем в coroutine scope.
      *
      * @param context Application context.
@@ -111,7 +111,7 @@ class DatDeviceManager @Inject constructor() {
 
     /**
      * Запускает процесс регистрации устройства (pairing).
-     * Требует Activity context для DAT SDK 0.4.0+.
+     * Требует Activity context для DAT SDK 0.5.0+.
      */
     fun startRegistration(activity: Activity) {
         if (!_state.value.isInitialized) {
@@ -149,7 +149,7 @@ class DatDeviceManager @Inject constructor() {
     /**
      * Обновляет статус разрешения камеры.
      *
-     * DAT SDK 0.4.0 не имеет Wearables.requestPermission().
+     * DAT SDK 0.5.0 не имеет Wearables.requestPermission().
      * Разрешения управляются через Meta AI companion app.
      */
     fun requestCameraPermission() {
@@ -187,7 +187,7 @@ class DatDeviceManager @Inject constructor() {
         registrationObserverJob = scope.launch {
             try {
                 Wearables.registrationState.collectLatest { regState ->
-                    // RegistrationState is sealed class in DAT SDK 0.4.0
+                    // RegistrationState is sealed class in DAT SDK 0.5.0
                     val isRegistered = regState is RegistrationState.Registered
                     _state.value = _state.value.copy(
                         isRegistered = isRegistered
@@ -208,7 +208,7 @@ class DatDeviceManager @Inject constructor() {
 
     /**
      * Обновляет статус разрешений.
-     * checkPermissionStatus() is suspend в DAT SDK 0.4.0.
+     * checkPermissionStatus() is suspend в DAT SDK 0.5.0.
      */
     private suspend fun refreshPermissions() {
         if (!_state.value.isInitialized) return

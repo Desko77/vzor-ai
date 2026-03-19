@@ -11,9 +11,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Тесты контракта интеграции с Meta Wearables DAT SDK 0.4.0.
+ * Тесты контракта интеграции с Meta Wearables DAT SDK 0.5.0.
  *
- * DAT SDK 0.4.0 real API:
+ * DAT SDK 0.5.0 real API:
  * - RegistrationState is sealed class: Available, Registered, Registering, Unavailable, Unregistering
  * - PermissionStatus is sealed interface: Granted, Denied (no NotDetermined)
  * - StreamSessionState enum: STARTING, STARTED, STREAMING, STOPPING, STOPPED, CLOSED
@@ -131,7 +131,7 @@ class DatSdkIntegrationTest {
 
     @Test
     fun `stream session state lifecycle`() {
-        // Real DAT SDK 0.4.0: STARTING → STARTED → STREAMING → STOPPING → STOPPED → CLOSED
+        // Real DAT SDK 0.5.0: STARTING → STARTED → STREAMING → STOPPING → STOPPED → CLOSED
         val expectedOrder = listOf(
             StreamSessionState.STARTING,
             StreamSessionState.STREAMING,

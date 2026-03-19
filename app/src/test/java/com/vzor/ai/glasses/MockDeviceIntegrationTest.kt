@@ -12,7 +12,7 @@ import org.junit.Test
 /**
  * Интеграционные тесты с mwdat-mockdevice.
  *
- * DAT SDK 0.4.0 real API:
+ * DAT SDK 0.5.0 real API:
  * - RegistrationState is sealed class: Available, Registered, Registering, Unavailable, Unregistering
  * - PermissionStatus is sealed interface: Granted, Denied (no NotDetermined)
  * - StreamSessionState enum: STARTING, STARTED, STREAMING, STOPPING, STOPPED, CLOSED
@@ -31,7 +31,7 @@ class MockDeviceIntegrationTest {
 
     @Test
     fun `registration flow uses sealed class states`() {
-        // DAT SDK 0.4.0: RegistrationState is sealed class
+        // DAT SDK 0.5.0: RegistrationState is sealed class
         // Unavailable → Registering → Registered
         // Testing using string representations since sealed class instances
         val states = listOf("Unavailable", "Registering", "Registered")
@@ -53,7 +53,7 @@ class MockDeviceIntegrationTest {
 
     @Test
     fun `camera permission has two states in DAT SDK`() {
-        // DAT SDK 0.4.0: PermissionStatus is sealed interface with Granted and Denied only
+        // DAT SDK 0.5.0: PermissionStatus is sealed interface with Granted and Denied only
         val permissionStates = listOf("Granted", "Denied")
         assertEquals(2, permissionStates.size)
     }
@@ -77,7 +77,7 @@ class MockDeviceIntegrationTest {
 
     @Test
     fun `stream session state lifecycle`() {
-        // DAT SDK 0.4.0: STARTING → STARTED → STREAMING → STOPPING → STOPPED → CLOSED
+        // DAT SDK 0.5.0: STARTING → STARTED → STREAMING → STOPPING → STOPPED → CLOSED
         val states = listOf(
             StreamSessionState.STARTING,
             StreamSessionState.STREAMING,

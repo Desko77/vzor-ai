@@ -20,6 +20,7 @@ import android.graphics.YuvImage
 import android.util.Log
 import com.meta.wearable.dat.camera.StreamSession
 import com.meta.wearable.dat.camera.startStreamSession
+import com.meta.wearable.dat.camera.types.CaptureError
 import com.meta.wearable.dat.camera.types.PhotoData
 import com.meta.wearable.dat.camera.types.StreamConfiguration
 import com.meta.wearable.dat.camera.types.StreamSessionState
@@ -156,7 +157,7 @@ class GlassesManager @Inject constructor(
 
     /**
      * Запускает регистрацию DAT SDK из Activity.
-     * Требуется Activity context для DAT SDK 0.4.0+.
+     * Требуется Activity context для DAT SDK 0.5.0+.
      */
     fun startRegistration(activity: Activity) {
         initializeDatSdk()
@@ -448,8 +449,14 @@ class GlassesManager @Inject constructor(
                     .onSuccess { photoData ->
                         photoBytes = extractPhotoBytes(photoData)
                     }
-                    .onFailure { error ->
-                        Log.e(TAG, "Photo capture returned error: $error")
+                    .onFailure { captureError, cause ->
+                        val msg = when (captureError) {
+                            is CaptureError.DeviceDisconnected -> "Device disconnected"
+                            is CaptureError.NotStreaming -> "Not streaming"
+                            is CaptureError.CaptureInProgress -> "Capture already in progress"
+                            is CaptureError.CaptureFailed -> "Capture failed"
+                        }
+                        Log.e(TAG, "Photo capture error: $msg", cause)
                     }
 
                 // Если сессия была временная, закрываем

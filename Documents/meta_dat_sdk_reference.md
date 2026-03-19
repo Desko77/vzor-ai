@@ -2,7 +2,7 @@
 
 ## Версия SDK
 
-- **Артефакты:** `com.meta.wearable:mwdat-core:0.4.0`, `mwdat-camera:0.4.0`, `mwdat-mockdevice:0.4.0`
+- **Артефакты:** `com.meta.wearable:mwdat-core:0.5.0`, `mwdat-camera:0.5.0`, `mwdat-mockdevice:0.5.0`
 - **Maven:** `https://maven.pkg.github.com/facebook/meta-wearables-dat-android`
 - **Auth:** GitHub PAT (classic) с scope `read:packages`
 - **Docs:** https://wearables.developer.meta.com/docs/build-integration-android/
@@ -38,7 +38,7 @@ Wearables.initialize(context)
 
 ### 2. Регистрация устройства
 ```kotlin
-// ⚠️ DAT SDK 0.4.0: требуется Activity, не Context!
+// ⚠️ DAT SDK 0.5.0: требуется Activity, не Context!
 Wearables.startRegistration(activity)
 
 // Наблюдение за состоянием
